@@ -49,6 +49,26 @@ PLACEHOLDERS = {
 }
 
 
+# Stand-in values for running the template itself before init, such as CI
+# building a .env from .env.example. Never written into the repository.
+SAMPLE = {
+    "APP_NAME": "Template App",
+    "APP_SLUG": "app",
+    "APP_DESCRIPTION": "An application built from the Laravel template.",
+    "SKILL_PREFIX": "app",
+    "GITHUB_OWNER": "owner",
+    "GITHUB_REPO": "repo",
+    "PORT_SUFFIX": "100",
+    "LOCAL_DOMAIN": "app.test",
+    "PRODUCTION_DOMAIN": "app.example.com",
+}
+
+
+def render_sample(text: str) -> str:
+    """Fill any placeholder with its SAMPLE value; a no-op once initialised."""
+    return PLACEHOLDER_RE.sub(lambda m: SAMPLE.get(m.group(1), m.group(0)), text)
+
+
 def tracked_files(root: Path = REPO_ROOT) -> list[str]:
     out = subprocess.run(
         ["git", "ls-files", "-z"], cwd=root, capture_output=True, check=True
@@ -87,3 +107,11 @@ def find(root: Path = REPO_ROOT) -> dict[str, list[str]]:
         if names:
             hits[rel] = names
     return hits
+
+
+if __name__ == "__main__":
+    import sys
+
+    if sys.argv[1:] != ["--sample"]:
+        sys.exit("usage: placeholders.py --sample < in > out")
+    sys.stdout.write(render_sample(sys.stdin.read()))

@@ -547,8 +547,11 @@ jobs:
           name: pest-assets
           path: laravel/public/build
 
+      # Before init, .env.example still holds {{...}} placeholders (an
+      # invalid APP_URL among them), so fill them with sample values. Once
+      # the repository is initialised this is a plain copy.
       - name: Prepare environment file
-        run: cp .env.example .env
+        run: python3 ../tools/init/placeholders.py --sample < .env.example > .env
 
       - name: Generate application key
         run: php artisan key:generate
@@ -738,8 +741,11 @@ jobs:
       - name: Build frontend assets
         run: npm run build
 
+      # Before init, .env.example still holds {{...}} placeholders (an
+      # invalid APP_URL among them), so fill them with sample values. Once
+      # the repository is initialised this is a plain copy.
       - name: Prepare environment file
-        run: cp .env.example .env
+        run: python3 ../tools/init/placeholders.py --sample < .env.example > .env
 
       - name: Generate application key
         run: php artisan key:generate

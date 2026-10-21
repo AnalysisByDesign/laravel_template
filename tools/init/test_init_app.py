@@ -196,5 +196,20 @@ class InitTest(unittest.TestCase):
         self.assertNotIn("APP_KEY", json.dumps(marker))
 
 
+class SampleTest(unittest.TestCase):
+    def test_every_placeholder_has_a_sample_value(self) -> None:
+        import placeholders
+
+        self.assertEqual(set(placeholders.SAMPLE), set(placeholders.PLACEHOLDERS))
+
+    def test_sample_rendering_leaves_no_placeholder_in_the_env_example(self) -> None:
+        import placeholders
+
+        example = (placeholders.REPO_ROOT / "laravel/.env.example").read_text()
+        rendered = placeholders.render_sample(example)
+        self.assertEqual(placeholders.PLACEHOLDER_RE.findall(rendered), [])
+        self.assertIn("APP_URL=http://localhost:8", rendered)
+
+
 if __name__ == "__main__":
     unittest.main()

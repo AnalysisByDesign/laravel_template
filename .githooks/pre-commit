@@ -119,4 +119,13 @@ GLOBAL_HOOK="$HOME/.git-hooks/pre-commit"
 if [ -x "$GLOBAL_HOOK" ]; then
     exec "$GLOBAL_HOOK" "$@"
 fi
-exit 0
+
+# No global hook on this machine (a fresh Mac set up from the Brewfile), so
+# scan for secrets here instead. Fail closed: a missing scanner is not a pass.
+if ! command -v gitleaks >/dev/null 2>&1; then
+    echo "❌ gitleaks is not installed, so staged files cannot be scanned for secrets." >&2
+    echo "   Install it with: brew bundle --file=Brewfile" >&2
+    exit 1
+fi
+gitleaks git --pre-commit --staged --redact --no-banner --config .gitleaks.toml
+exit $?

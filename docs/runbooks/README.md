@@ -28,3 +28,4 @@ One-off operator procedures, verification checklists and references that fit nei
 | `coverage-override.md` | Reference | Merging below the coverage floor, owner-only and logged |
 | `rollback.md` | Procedure | Restoring the previous release in production |
 | `diagnosis/sail-cache-permissions.md` | Diagnosis | Many tests fail at once with `touch(): Utime failed: Permission denied` |
+| `setup/mac-workstation.md` | Setup | A Mac from nothing to a running app: Homebrew, the `Brewfile`, first-run tools |

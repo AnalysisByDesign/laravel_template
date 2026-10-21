@@ -59,7 +59,8 @@ The Laravel app lives only in `laravel/`, never at the repo root (`docs/decision
 
 All `make` targets run from the repo root and wrap `laravel/vendor/bin/sail`. Use them rather than calling Sail directly. Run `make help` for the full list.
 
-- **Health**: `make doctor`, a read-only check of host tools, `laravel/.env`, git hooks, the containers and the read-only database user.
+- **Health**: `make doctor`, a read-only check of the `Brewfile` tools, `laravel/.env`, git hooks, the containers and the read-only database user.
+- **Host tools**: the root `Brewfile` (`brew bundle --file=Brewfile`) is the single list of what a Mac needs; `docs/runbooks/setup/mac-workstation.md` sets one up from nothing. A new required tool goes into both, in the same change.
 - **Containers**: `make up`, `make down`, `make logs`, `make shell`.
   - `make dev` runs Vite and the queue listener. `make build` is the production asset build.
   - The app runs at http://localhost:8{{PORT_SUFFIX}}, and Caddy serves https://{{LOCAL_DOMAIN}}.
@@ -134,7 +135,7 @@ Merging the release-please PR publishes a release, and that triggers `deploy.yml
 - **Per-change review**: check each code change for injection, unescaped output (`{!! !!}`), mass assignment, missing authorisation, and unvalidated input reaching a query or a file path. Scope the review to the changed files plus their direct collaborators.
 - **Dependency audits**: the CI audits (`composer audit`, `npm audit`) gate on runtime dependencies and only report on development ones.
 - **Dependabot**: version updates point at `/laravel`, not the repo root.
-- **Secret scanning**: gitleaks runs from the global `~/.git-hooks` chain.
+- **Secret scanning**: `.githooks/pre-commit` hands off to a global `~/.git-hooks/pre-commit` when one exists, and otherwise runs gitleaks itself. It fails closed if gitleaks is missing.
 
 ## Generated files: regenerate, never hand-edit
 

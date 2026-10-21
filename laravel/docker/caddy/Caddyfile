@@ -1,0 +1,44 @@
+# Local HTTPS front door.
+#
+# Caddy terminates TLS on 443 and reverse-proxies to the Sail app
+# container, so the app can be exercised locally over real HTTPS on real
+# hostnames (the bare zone and any subdomain of it). The direct
+# http://localhost:${APP_PORT} route into the app container is untouched,
+# so the plain dev workflow keeps working alongside this.
+#
+# Certificate strategy is chosen by CADDY_TLS_MODE:
+#   internal  Caddy's own local CA. Default. Works with no AWS
+#             credentials, but browsers show a warning unless the local
+#             root is trusted.
+#   route53   Let's Encrypt over the ACME DNS-01 challenge, using a
+#             Route 53 zone. Needs a zone-scoped IAM user's credentials.
+{
+	email {$CADDY_ACME_EMAIL:}
+	admin :2019
+}
+
+# Both the bare zone and the wildcard. A wildcard covers exactly one
+# label level, so `*.app.test` does NOT cover `app.test` itself, and the
+# bare name has to be listed explicitly.
+{$CADDY_BASE_DOMAIN:app.test}, *.{$CADDY_BASE_DOMAIN:app.test} {
+	import tls-{$CADDY_TLS_MODE:internal}.caddy
+
+	encode zstd gzip
+
+	# Vite dev server, on one reserved hostname. The hot file holds a
+	# single URL while pages may load from many hostnames, so the dev
+	# server needs a fixed address of its own. Everything on this host,
+	# including the HMR WebSocket, goes to Vite.
+	@vite host vite.{$CADDY_BASE_DOMAIN:app.test}
+	handle @vite {
+		reverse_proxy laravel.test:{$VITE_PORT:5173}
+	}
+
+	handle {
+		# Caddy preserves the inbound Host header by default, so
+		# `request()->host()` in Laravel is the hostname the browser
+		# actually asked for. X-Forwarded-Host is deliberately not
+		# relied on.
+		reverse_proxy laravel.test:80
+	}
+}

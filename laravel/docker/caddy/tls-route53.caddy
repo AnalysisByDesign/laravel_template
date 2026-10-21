@@ -1,0 +1,19 @@
+# Imported when CADDY_TLS_MODE=route53.
+#
+# Let's Encrypt over the ACME DNS-01 challenge. DNS-01 is not a choice
+# here: it is the only challenge type that can issue a wildcard.
+#
+# The provider reads credentials from the standard AWS SDK environment
+# variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION), which
+# compose.yaml populates from the CADDY_AWS_* variables. They are named
+# separately from the application's own AWS_* variables on purpose: this
+# credential is scoped to one Route 53 zone and nothing else, and must
+# not be conflated with any credential the app itself uses.
+#
+# `resolvers` pins the propagation check to public resolvers rather than
+# the container's, which otherwise caches a negative answer for the
+# challenge record and stalls issuance.
+tls {
+	dns route53
+	resolvers 1.1.1.1 8.8.8.8
+}

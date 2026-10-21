@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# Repo pre-commit hook: this repo sets a local core.hooksPath override
+# (see .githooks/pre-push), which would otherwise silently disable the user's
+# global hooks. This shim keeps the global pre-commit (e.g. gitleaks) running.
+#
+# It also regenerates PlantUML diagram PNGs for any staged .puml files, so the
+# working tree has current renders for local viewing. The PNGs are gitignored
+# (see .gitignore); nothing is re-staged, this step only refreshes the render.
+set -uo pipefail
+
+staged_puml=$(git diff --cached --name-only --diff-filter=ACM -- '*.puml')
+
+if [ -n "$staged_puml" ]; then
+    if ! command -v plantuml >/dev/null 2>&1; then
+        echo "" >&2
+        echo "❌ plantuml command not found, cannot regenerate diagram PNGs for staged .puml changes." >&2
+        echo "   Install PlantUML (e.g. 'brew install plantuml') and retry." >&2
+        exit 1
+    fi
+    while IFS= read -r puml_file; do
+        echo "Regenerating PlantUML diagram: $puml_file"
+
+        # Check the exit code. PlantUML writes a PNG either way: on a
+        # syntax error it renders the error message AS the image and exits
+        # non-zero, so ignoring it commits a broken diagram silently as a
+        # small picture of its own error.
+        if ! plantuml "$puml_file"; then
+            echo "" >&2
+            echo "❌ PlantUML failed to render $puml_file." >&2
+            echo "   The PNG beside it is now a picture of the error, not a diagram." >&2
+            echo "   Fix the .puml and commit again; run 'plantuml -v \"$puml_file\"' to see the failing line." >&2
+            exit 1
+        fi
+    done <<< "$staged_puml"
+fi
+
+# Pint style gate: stops style drift slipping through per-task commits
+# and bouncing the PR on CI's pint job. Run the
+# SAME check CI runs, but only over staged PHP files, so every commit
+# path (agent-driven or manual) is caught locally. Prefers a running Sail
+# container; falls back to a host PHP with laravel/vendor available. If
+# neither can run pint, warn and continue rather than blocking a commit
+# on tooling absence (CI remains the backstop).
+# Blade files are excluded: bare pint (what CI runs) skips *.blade.php by
+# default, but passing them as explicit paths would force-scan them and
+# make this gate stricter than CI.
+staged_php=$(git diff --cached --name-only --diff-filter=ACM -- 'laravel/*.php' ':(exclude)laravel/*.blade.php' | sed 's|^laravel/||')
+
+if [ -n "$staged_php" ]; then
+    # Staged paths have the laravel/ prefix stripped, so both runners must
+    # execute with laravel/ as the working directory: the container via
+    # docker exec -w, the host fallback via the cd in the invocation below.
+    # Running the host fallback from the repo root made pint fail to read
+    # every path, and the swallowed error read as a style failure.
+    # Several worktrees can each carry a Sail stack, and the one running may
+    # belong to another checkout. Use a container only when its /var/www/html
+    # is THIS checkout's laravel/; otherwise pint tests the wrong tree, every
+    # path reads as unreadable, and the swallowed error reports as a style
+    # failure.
+    pint_runner=""
+    here=$(cd laravel 2>/dev/null && pwd -P)
+    for container in $(docker ps --format '{{.Names}}' 2>/dev/null | grep 'laravel.test'); do
+        mount=$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/var/www/html"}}{{.Source}}{{end}}{{end}}' 2>/dev/null)
+        if [ -n "$mount" ] && [ "$(cd "$mount" 2>/dev/null && pwd -P)" = "$here" ]; then
+            pint_runner="docker exec -w /var/www/html $container ./vendor/bin/pint --test"
+            break
+        fi
+    done
+    if [ -z "$pint_runner" ] && command -v php >/dev/null 2>&1 && [ -f laravel/vendor/bin/pint ]; then
+        pint_runner="php vendor/bin/pint --test"
+    fi
+
+    if [ -n "$pint_runner" ]; then
+        echo "🎨 Running pint --test on staged PHP files..."
+        # shellcheck disable=SC2086
+        if ! (cd laravel && $pint_runner $staged_php) >/dev/null 2>&1; then
+            echo "" >&2
+            echo "❌ pint found style issues in staged files. Fix with:" >&2
+            echo "   make pint    (or: cd laravel && ./vendor/bin/sail exec laravel.test ./vendor/bin/pint)" >&2
+            echo "   then re-stage and commit again." >&2
+            exit 1
+        fi
+        echo "✅ pint: staged files clean"
+    else
+        echo "⚠️  pint unavailable (no Sail container mounted on this checkout, no host runner), relying on CI's pint job." >&2
+    fi
+fi
+
+# Staged-file size guard: reject any staged blob over the limit before it
+# lands. Checks the staged blob, not the working-tree
+# file, so partial stages and clean filters are honoured. Override the
+# limit per commit with MAX_FILE_BYTES if a larger file is deliberate.
+max_bytes="${MAX_FILE_BYTES:-1048576}"
+oversized=""
+# NUL-delimited so paths git would otherwise C-quote (non-ASCII names)
+# still resolve; a path that cannot be sized is treated as oversized
+# rather than silently passed.
+while IFS= read -r -d '' staged_file; do
+    [ -n "$staged_file" ] || continue
+    if ! size=$(git cat-file -s ":$staged_file" 2>/dev/null); then
+        oversized="${oversized}   ${staged_file} (size could not be read)\n"
+        continue
+    fi
+    if [ "$size" -gt "$max_bytes" ]; then
+        oversized="${oversized}   ${staged_file} ($((size / 1024)) KB)\n"
+    fi
+done < <(git diff --cached --name-only -z --diff-filter=ACM)
+
+if [ -n "$oversized" ]; then
+    echo "" >&2
+    echo "❌ Staged file(s) exceed the $((max_bytes / 1024)) KB commit limit:" >&2
+    printf "%b" "$oversized" >&2
+    echo "   Shrink the file (crop, pngquant/oxipng) or, if the size is deliberate," >&2
+    echo "   re-run with MAX_FILE_BYTES=<bytes> git commit ..." >&2
+    exit 1
+fi
+
+GLOBAL_HOOK="$HOME/.git-hooks/pre-commit"
+if [ -x "$GLOBAL_HOOK" ]; then
+    exec "$GLOBAL_HOOK" "$@"
+fi
+exit 0

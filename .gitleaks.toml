@@ -1,0 +1,10 @@
+[extend]
+useDefault = true
+
+# Add an [allowlist] here for public, non-secret data committed on purpose
+# (sample extracts, test fixtures). Keep each path as narrow as possible.
+# [allowlist]
+# description = "Public sample data, not app secrets"
+# paths = [
+#     '''docs/sample-extracts/.*''',
+# ]

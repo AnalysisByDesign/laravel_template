@@ -1,0 +1,175 @@
+# Production operations targets
+#
+# Usage ON THE PRODUCTION INSTANCE (from the repo checkout root):
+#   make -f Makefile.ops <target>
+#
+# Deliberately a separate file from the dev Makefile: the dev targets run
+# through Sail containers, these run against the system PHP on the
+# instance. Keeping them apart means a dev machine cannot accidentally run
+# a production recipe by tab-completing the wrong target, and the instance
+# (which has no Docker) never sees Sail.
+#
+# Every environment specific value is a variable. The defaults below are
+# PLACEHOLDERS: set them to match the instance image before first use, or
+# override at invocation time, e.g.:
+#   make -f Makefile.ops PHP_BIN=/usr/bin/php caches-clear
+
+# System PHP for the app.
+PHP_BIN ?= /usr/bin/php
+
+# App directory relative to this file (the app lives in laravel/ under the
+# checkout root).
+APP_DIR ?= laravel
+
+# The SSM parameter the whole .env is rendered from.
+ENV_PARAM ?= /laravel/example.com/env
+
+# The PHP-FPM unit serving the app. Reloading is the supported way to reset
+# opcache without dropping requests.
+FPM_SERVICE ?= php-fpm
+
+# The cron.d file running the Laravel scheduler every minute.
+CRON_FILE ?= /etc/cron.d/app-scheduler
+
+# Public hostname, used only to print a usable maintenance bypass URL.
+APP_HOST ?= example.com
+
+ARTISAN = cd $(APP_DIR) && $(PHP_BIN) artisan
+
+.PHONY: help status logs env-refresh caches-clear opcache-reset \
+        scheduler-on scheduler-off queue-restart \
+        maintenance-on maintenance-off
+
+help:
+	@echo ""
+	@echo "  Production operations (make -f Makefile.ops <target>)"
+	@echo ""
+	@echo "  INSPECT:"
+	@echo "    status           Environment flags, scheduler, queue depth, services"
+	@echo "    logs             Tail the Laravel log"
+	@echo ""
+	@echo "  ENVIRONMENT:"
+	@echo "    env-refresh      Re-download .env from Parameter Store, rebuild caches"
+	@echo "    caches-clear     Clear and rebuild all Laravel caches, reset opcache"
+	@echo "    opcache-reset    Reload PHP-FPM to reset opcache only"
+	@echo ""
+	@echo "  SERVICES:"
+	@echo "    scheduler-on     Uncomment the scheduler cron entry"
+	@echo "    scheduler-off    Comment out the scheduler cron entry"
+	@echo "    queue-restart    Signal queue workers to restart gracefully"
+	@echo "    maintenance-on   Put the app into maintenance mode"
+	@echo "    maintenance-off  Bring the app back up"
+	@echo ""
+	@echo "  Variables (override as VAR=value): PHP_BIN, APP_DIR, ENV_PARAM,"
+	@echo "  FPM_SERVICE, CRON_FILE, APP_HOST."
+	@echo ""
+
+# ── Inspect ───────────────────────────────────────────────────────────────────
+
+status:
+	@echo "── Environment (.env) ──"
+	@grep -E "^(APP_ENV|APP_DEBUG)=" $(APP_DIR)/.env || echo "(APP_ENV/APP_DEBUG not present)"
+	@echo ""
+	@echo "── Scheduler cron ($(CRON_FILE)) ──"
+	@if [ -f $(CRON_FILE) ]; then grep -c "^[^#]" $(CRON_FILE) | xargs -I{} echo "{} active line(s)"; grep "schedule:run" $(CRON_FILE) || true; else echo "cron file not found"; fi
+	@echo ""
+	@echo "── Queue depth ──"
+	@$(ARTISAN) queue:monitor database:default 2>/dev/null || true
+	@cd $(APP_DIR) && $(PHP_BIN) artisan queue:failed 2>/dev/null | tail -5
+	@echo ""
+	@echo "── Services ──"
+	@systemctl is-active $(FPM_SERVICE) 2>/dev/null | xargs -I{} echo "$(FPM_SERVICE): {}" || true
+	@systemctl is-active nginx 2>/dev/null | xargs -I{} echo "nginx: {}" || true
+
+# -F not -f: the log may not exist yet on a freshly recycled instance, and
+# -F also survives rotation, where -f would silently keep reading a
+# rotated-away file descriptor.
+logs:
+	tail -F $(APP_DIR)/storage/logs/laravel.log
+
+# ── Environment ───────────────────────────────────────────────────────────────
+
+# Re-render .env from Parameter Store, then rebuild every cache so the
+# running app picks the values up.
+#
+# Fetches to .env.incoming and only moves it into place once it is both
+# non-empty and carries an APP_KEY. The live .env is never the redirect
+# target: the shell truncates a redirect target BEFORE the command runs, so
+# writing straight to .env would leave a zero-byte .env on a live instance
+# after any failed fetch. umask 077 keeps the transient file from being
+# world readable while it exists.
+#
+# The previous .env is copied aside, so a bad but well-formed render is a
+# one-command rollback:
+#   cp laravel/.env.backup laravel/.env && make -f Makefile.ops caches-clear
+env-refresh:
+	@umask 077 && { aws ssm get-parameter --name "$(ENV_PARAM)" --with-decryption \
+		--query 'Parameter.Value' --output text > $(APP_DIR)/.env.incoming; } \
+		|| { rm -f $(APP_DIR)/.env.incoming; echo "ERROR: fetch failed, .env untouched"; exit 1; }
+	@test -s $(APP_DIR)/.env.incoming \
+		|| { rm -f $(APP_DIR)/.env.incoming; echo "ERROR: empty .env fetched, .env untouched"; exit 1; }
+	@grep -q "^APP_KEY=" $(APP_DIR)/.env.incoming \
+		|| { rm -f $(APP_DIR)/.env.incoming; echo "ERROR: fetched .env has no APP_KEY, .env untouched"; exit 1; }
+	cp $(APP_DIR)/.env $(APP_DIR)/.env.backup
+	mv $(APP_DIR)/.env.incoming $(APP_DIR)/.env
+	$(MAKE) -f Makefile.ops caches-clear
+	@echo "env refreshed from $(ENV_PARAM); previous file at $(APP_DIR)/.env.backup"
+
+# Full fresh start: clear every Laravel cache, rebuild the ones production
+# should always run with, and reset opcache. A stale route or config cache
+# is the class of problem this is the hammer for.
+caches-clear:
+	$(ARTISAN) optimize:clear
+	$(ARTISAN) config:cache
+	$(ARTISAN) route:cache
+	$(ARTISAN) view:cache
+	$(ARTISAN) event:cache
+	$(MAKE) -f Makefile.ops opcache-reset
+	@echo "all caches rebuilt, opcache reset"
+
+# Reload (not restart) FPM: resets opcache without dropping in-flight
+# requests. Needed after config:cache, because with
+# opcache.validate_timestamps=0 running workers keep serving the OLD cached
+# config file until the pool is reloaded.
+opcache-reset:
+	sudo systemctl reload $(FPM_SERVICE)
+
+# ── Services ──────────────────────────────────────────────────────────────────
+
+# Enable/disable by commenting the cron lines in place rather than moving
+# the file: reversible, visible in status, and avoids cron.d
+# filename-parsing surprises across cron implementations.
+scheduler-on:
+	sudo sed -i "s/^#\s*\(.*schedule:run.*\)/\1/" $(CRON_FILE)
+	@grep "schedule:run" $(CRON_FILE)
+	@echo "scheduler cron active"
+
+scheduler-off:
+	sudo sed -i "s/^\([^#].*schedule:run.*\)/# \1/" $(CRON_FILE)
+	@grep "schedule:run" $(CRON_FILE)
+	@echo "scheduler cron commented out. If the scheduler also drains the"
+	@echo "queue, queued work will back up in the jobs table until re-enabled."
+
+# Graceful: workers finish their current job then exit.
+queue-restart:
+	$(ARTISAN) queue:restart
+	@echo "restart signal sent; workers recycle after their current job"
+
+# ── Maintenance mode ──────────────────────────────────────────────────────────
+
+# `down` renders a 503 while allowing a secret bypass URL, and the printed
+# link is how you check the site while it is down.
+#
+# Deliberately no `|| artisan down` fallback: that would take the site down
+# with NO bypass while still printing that a secret existed. If the secret
+# form fails, this fails loudly and the site stays up.
+maintenance-on:
+	@secret=$$(openssl rand -hex 16); \
+	$(ARTISAN) down --secret="$$secret" --retry=60 || { echo "ERROR: could not enter maintenance mode; site is UNCHANGED"; exit 1; }; \
+	echo ""; \
+	echo "maintenance mode ON"; \
+	echo "bypass: https://$(APP_HOST)/$$secret  (visit once, then browse normally)"
+
+maintenance-off:
+	$(ARTISAN) up
+	@echo "maintenance mode OFF"

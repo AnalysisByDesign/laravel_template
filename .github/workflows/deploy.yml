@@ -1,0 +1,81 @@
+name: Deploy
+
+# Production deploys are gated on PUBLISHED RELEASES: merging a PR to main
+# ships nothing; merging the release-please PR publishes a GitHub Release,
+# release-please.yml dispatches this workflow for the tag, and the tagged
+# commit is deployed. Production therefore always runs a tagged,
+# changelogged version, and the previous release tag is the standing
+# rollback target.
+#
+# Sequence: trigger the on-instance build via scripts/deploy/trigger.sh
+# (SSM Run Command against the instances tagged for this app), then
+# post-deploy verify against the live site. Runs are serialised by the
+# production-deploy concurrency group.
+#
+# Rollback: dispatch this workflow with ref=<previous release tag>.
+#
+# Repository configuration required (Settings > Secrets and variables):
+#   secret   AWS_DEPLOY_ROLE_ARN   GitHub OIDC federated deploy-invoker role
+#   variable AWS_REGION            e.g. eu-west-1
+#   variable DEPLOY_TAG_KEY        EC2 tag key identifying deploy targets
+#   variable DEPLOY_TAG_VALUE      EC2 tag value identifying deploy targets
+#   variable DEPLOY_COMMAND        on-instance deploy script path
+#   variable DEPLOY_CHECKOUT_PATH  on-instance git checkout, read to assert the deployed SHA
+#   variable PRODUCTION_URL        e.g. https://example.com
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: >-
+          Git ref to deploy. For a rollback, use the previous release
+          tag, e.g. "v0.2.1".
+        required: true
+        default: main
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # OIDC federation to the AWS deploy-invoker role (no long-lived keys)
+  contents: read
+
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # full history and tags, to resolve the ref to a SHA
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # The ref is resolved to a concrete SHA and passed as trigger.sh's
+      # second argument, so it asserts the commit that actually ended up
+      # deployed on each instance, not just that the command succeeded.
+      - name: Trigger deploy
+        env:
+          DEPLOY_TAG_KEY: ${{ vars.DEPLOY_TAG_KEY }}
+          DEPLOY_TAG_VALUE: ${{ vars.DEPLOY_TAG_VALUE }}
+          DEPLOY_COMMAND: ${{ vars.DEPLOY_COMMAND }}
+          DEPLOY_CHECKOUT_PATH: ${{ vars.DEPLOY_CHECKOUT_PATH }}
+          REF: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.ref }}
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse "${REF}^{commit}")"
+          scripts/deploy/trigger.sh "${REF}" "${sha}"
+
+      # Public HTTP surface only; the deployed-ref assertion already
+      # happened inside trigger.sh.
+      - name: Post-deploy verify
+        run: scripts/deploy/verify.sh "${{ vars.PRODUCTION_URL }}"

@@ -1,0 +1,61 @@
+@startuml branching-model
+' The feature-branch model.
+'
+' Source of record: the
+' "Branching & PR workflow" section of CLAUDE.md.
+' The pre-commit hook renders the PNG for any staged .puml automatically.
+'
+' Drawn as a sequence diagram because a branch is a lifeline: time runs
+' downwards, and each arrow is a branch being cut or a PR being merged.
+
+title Branching model
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam defaultFontSize 12
+skinparam ArrowColor #555555
+skinparam sequenceMessageAlign center
+skinparam sequence {
+  LifeLineBorderColor #999999
+  ParticipantBorderColor #999999
+  ParticipantBackgroundColor #FFFFFF
+  GroupBorderColor #BBBBBB
+  GroupBackgroundColor #FAFAFA
+}
+
+participant "main" as main #F0FFF0
+participant "feature/001-example\n(spec or work package)" as feat #F0F6FF
+participant "001-example\n(task: specify to analyze)" as t1
+participant "task branch\n(a user story)" as t2
+participant "fix/812-...\n(fix for this feature)" as fx
+participant "fix/815-...\n(production fix)" as pfx #FFF0F0
+
+== Promotion ==
+main -> feat : cut at promotion and pushed\n(tpl-promote-backlog-spec, tpl-promote-wp)\n**Target branch** written into the document
+
+== Work on the feature ==
+feat -> t1 : cut by /speckit.specify\nrun from the feature branch
+t1 -> feat : PR, squash-merged\ntask tier: per-file checks on changed files
+feat -> t2 : cut
+t2 -> feat : PR, squash-merged\npest only if the operator asks
+
+feat -> fx : cut by tpl-fix-branch\n(operator chose this feature)
+fx -> feat : PR, squash-merged\nno pest: the feature merge tests it
+
+== Meanwhile, on main ==
+main -> pfx : cut by tpl-fix-branch\n(operator chose main)
+pfx -> main : PR, squash-merged\npest **mandatory**: nothing later catches it
+
+main -> feat : merged in when there is a reason\n(never rebased)
+
+== Release gate ==
+feat -> main : one PR, squash-merged (tpl-merge, feature merge)\nfull checks, larastan and pest run without a label\nmigration order checked against main
+
+note over main
+  Merging the release-please PR
+  publishes the release and fires
+  the deploy, as before.
+end note
+
+@enduml

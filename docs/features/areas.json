@@ -1,0 +1,46 @@
+{
+    "version": 1,
+    "status": "starter vocabulary from the template, not yet agreed",
+    "areas": {
+        "auth": {
+            "description": "Sign-up, sign-in, password reset, email verification, two-factor authentication and session handling.",
+            "not": "Who may do what once signed in (access-control).",
+            "related": ["access-control", "security"]
+        },
+        "access-control": {
+            "description": "Roles, permissions, policies and gates: who may see or change what once authenticated.",
+            "not": "Establishing identity in the first place (auth).",
+            "related": ["auth", "admin"]
+        },
+        "admin": {
+            "description": "Operator and staff-facing administration surfaces and the settings they manage.",
+            "not": "Anything a public visitor or end user sees (public-site).",
+            "related": ["access-control", "notifications"]
+        },
+        "public-site": {
+            "description": "Pages and flows served to unauthenticated visitors, including marketing content and lead capture.",
+            "not": "Signed-in administration (admin).",
+            "related": ["auth", "notifications"]
+        },
+        "notifications": {
+            "description": "Email, SMS and in-app notifications: templates, channels, delivery and retry.",
+            "not": "The business events that cause a notification, which belong to the area that owns the event.",
+            "related": ["admin", "public-site"]
+        },
+        "payments": {
+            "description": "Taking, refunding and reconciling money, payment provider integration and webhooks.",
+            "not": "Subscription plans and what each plan includes, if billing is a separate concern in the product.",
+            "related": ["admin", "security"]
+        },
+        "security": {
+            "description": "Security controls that span areas: input safety, rate limiting, secrets handling, audit logging and data protection.",
+            "not": "Ordinary authentication flows (auth) or role rules (access-control).",
+            "related": ["auth", "access-control", "infrastructure"]
+        },
+        "infrastructure": {
+            "description": "Hosting, deployment, CI, queues, caching, storage, monitoring and the local development stack.",
+            "not": "Application features that merely run on the infrastructure.",
+            "related": ["security"]
+        }
+    }
+}

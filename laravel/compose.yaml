@@ -1,0 +1,138 @@
+# Explicit Compose project name so containers/volumes/networks are namespaced
+# app-laravel-*. The default (directory name, `laravel`) collides with other
+# local apps following the same <project>/laravel layout. Rename per project.
+name: app-laravel
+
+services:
+    laravel.test:
+        build:
+            context: './docker/php85'
+            dockerfile: Dockerfile
+            args:
+                WWWGROUP: '${WWWGROUP}'
+        image: 'sail-8.5/app'
+        extra_hosts:
+            - 'host.docker.internal:host-gateway'
+        ports:
+            - '${APP_PORT:-80}:80'
+            - '${VITE_PORT:-5173}:${VITE_PORT:-5173}'
+        environment:
+            WWWUSER: '${WWWUSER}'
+            LARAVEL_SAIL: 1
+            XDEBUG_MODE: '${SAIL_XDEBUG_MODE:-off}'
+            XDEBUG_CONFIG: '${SAIL_XDEBUG_CONFIG:-client_host=host.docker.internal}'
+            IGNITION_LOCAL_SITES_PATH: '${PWD}'
+        volumes:
+            - '.:/var/www/html'
+        networks:
+            - sail
+        depends_on:
+            - mysql
+            - redis
+        # Explicit CPU cap. Compose Specification deploy.resources.limits is
+        # honoured outside Swarm mode by `docker compose up` (Compose CLI v2+).
+        # Without it the container is unrestricted against the whole Docker
+        # Desktop VM.
+        deploy:
+            resources:
+                limits:
+                    cpus: '4'
+    # Local HTTPS front door. Terminates TLS for the bare zone and its
+    # wildcard and proxies to laravel.test. Added alongside, not in front
+    # of, the '${APP_PORT}:80' mapping above, so http://localhost:APP_PORT
+    # keeps working exactly as before.
+    caddy:
+        build:
+            context: './docker/caddy'
+            dockerfile: Dockerfile
+        image: 'app/caddy-route53'
+        restart: unless-stopped
+        ports:
+            - '${CADDY_HTTP_PORT:-80}:80'
+            - '${CADDY_HTTPS_PORT:-443}:443'
+            - '${CADDY_HTTPS_PORT:-443}:443/udp'
+        environment:
+            CADDY_BASE_DOMAIN: '${CADDY_BASE_DOMAIN:-app.test}'
+            CADDY_TLS_MODE: '${CADDY_TLS_MODE:-internal}'
+            CADDY_ACME_EMAIL: '${CADDY_ACME_EMAIL:-}'
+            # Where vite.<base domain> is proxied to.
+            VITE_PORT: '${VITE_PORT:-5173}'
+            # Deliberately NOT the application's AWS_* credentials: this
+            # is a separate, Route-53-zone-scoped IAM user.
+            AWS_ACCESS_KEY_ID: '${CADDY_AWS_ACCESS_KEY_ID:-}'
+            AWS_SECRET_ACCESS_KEY: '${CADDY_AWS_SECRET_ACCESS_KEY:-}'
+            AWS_REGION: '${CADDY_AWS_REGION:-eu-west-1}'
+        volumes:
+            - './docker/caddy:/etc/caddy:ro'
+            # Issued certificates and the ACME account key. Keeping this a
+            # named volume is what stops a `down`/`up` cycle burning a fresh
+            # issuance against the Let's Encrypt rate limit.
+            - 'caddy-data:/data'
+            - 'caddy-config:/config'
+        networks:
+            - sail
+        depends_on:
+            - laravel.test
+        deploy:
+            resources:
+                limits:
+                    cpus: '4'
+    mysql:
+        image: 'mysql:8.4'
+        ports:
+            - '${FORWARD_DB_PORT:-3306}:3306'
+        environment:
+            MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_ROOT_HOST: '%'
+            MYSQL_DATABASE: '${DB_DATABASE}'
+            MYSQL_USER: '${DB_USERNAME}'
+            MYSQL_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_ALLOW_EMPTY_PASSWORD: 1
+            MYSQL_EXTRA_OPTIONS: '${MYSQL_EXTRA_OPTIONS:-}'
+        volumes:
+            - 'sail-mysql:/var/lib/mysql'
+            - './vendor/laravel/sail/database/mysql/create-testing-database.sh:/docker-entrypoint-initdb.d/10-create-testing-database.sh'
+        networks:
+            - sail
+        healthcheck:
+            test:
+                - CMD
+                - mysqladmin
+                - ping
+                - '-p${DB_PASSWORD}'
+            retries: 3
+            timeout: 5s
+        # cpus: is a ceiling on CPU time via the kernel CFS quota, not a
+        # reservation of exclusive cores, so caps summing past the host's
+        # core count is normal.
+        deploy:
+            resources:
+                limits:
+                    cpus: '4'
+    redis:
+        image: 'redis:alpine'
+        ports:
+            - '${FORWARD_REDIS_PORT:-6379}:6379'
+        volumes:
+            - 'sail-redis:/data'
+        networks:
+            - sail
+        healthcheck:
+            test:
+                - CMD
+                - redis-cli
+                - ping
+            retries: 3
+            timeout: 5s
+networks:
+    sail:
+        driver: bridge
+volumes:
+    sail-mysql:
+        driver: local
+    sail-redis:
+        driver: local
+    caddy-data:
+        driver: local
+    caddy-config:
+        driver: local

@@ -34,7 +34,17 @@ else
 fi
 
 echo "Host tools"
-for tool in docker php composer node npm python3 plantuml gitleaks gh; do
+if command -v brew >/dev/null 2>&1; then
+    # --no-upgrade: only a missing entry counts; an outdated one is not a fault.
+    if HOMEBREW_NO_AUTO_UPDATE=1 brew bundle check --file="$root/Brewfile" --no-upgrade >/dev/null 2>&1; then
+        ok "everything in the Brewfile is installed"
+    else
+        warn "Brewfile entries missing: brew bundle --file=Brewfile"
+    fi
+else
+    warn "Homebrew not found: docs/runbooks/setup/mac-workstation.md"
+fi
+for tool in docker php composer node npm python3 plantuml gitleaks shellcheck gh; do
     if command -v "$tool" >/dev/null 2>&1; then
         ok "$tool"
     elif [ "$tool" = docker ]; then

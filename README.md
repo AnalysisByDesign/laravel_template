@@ -3,9 +3,21 @@
 
 A Laravel 13 / PHP 8.5 starting point with the delivery process built in: Sail with MySQL, Redis and Caddy; Pest, Pint and Larastan; spec-kit; a feature-branch model enforced by hooks and CI; release-please; release-gated SSM deploys; and Claude Code agents and skills that run the lifecycle. Each tag names the Laravel version it carries.
 
+## A new Mac first
+
+Install Homebrew, download this repository's [`Brewfile`](Brewfile), and run `brew bundle --file=~/Brewfile`. That installs git, Docker Desktop, PHP, Composer, Node, VS Code, iTerm2, Claude Code, MySQL Workbench, Redis Insight, Bruno and everything else, from nothing:
+
+```sh
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+curl -fsSL https://raw.githubusercontent.com/AnalysisByDesign/laravel_template/main/Brewfile -o ~/Brewfile
+brew bundle --file=~/Brewfile
+```
+
+The full walk-through, including the first-run steps for Docker, GitHub and Claude Code, is [`docs/runbooks/setup/mac-workstation.md`](docs/runbooks/setup/mac-workstation.md).
+
 ## Creating an application from it
 
-1. On GitHub, choose **Use this template**, then clone the new repository.
+1. On GitHub, choose **Use this template** (or `gh repo create <owner>/<app> --template AnalysisByDesign/laravel_template --private --clone`), then clone the new repository.
 2. Open it in Claude Code and run `/init-laravel-app`. It asks for:
    - the app name, slug, skill prefix, port suffix and domains;
    - whether to generate the database passwords.
@@ -22,22 +34,18 @@ Everything below this section is the new application's README, and init fills it
 
 The values this repository was initialised with are in `docs/initialisation.md`. `CLAUDE.md` describes how the pieces fit together.
 
-## Prerequisites
+## Setting up a Mac
 
-- PHP `^8.5` and Composer
-- Docker, for Laravel Sail
-- Node.js LTS and npm
-- PlantUML (`brew install plantuml`), used by the pre-commit hook to render `.puml` diagrams
-- gitleaks, run from your global `~/.git-hooks`
-- Python 3, for `tools/`
+Everything this repository needs is in the [`Brewfile`](Brewfile): git, the GitHub CLI, Docker Desktop, PHP, Composer, Node, Python, PlantUML, gitleaks, VS Code, iTerm2, Claude Code, MySQL Workbench, Redis Insight, Bruno and the rest. On a new Mac, install Homebrew, download that one file and run `brew bundle`. [`docs/runbooks/setup/mac-workstation.md`](docs/runbooks/setup/mac-workstation.md) walks through it from nothing.
 
 ## Getting started
 
-1. `git clone git@github.com:{{GITHUB_OWNER}}/{{GITHUB_REPO}}.git`
-2. If this machine has no `laravel/.env` yet, create one from `laravel/.env.example` and fill in `APP_KEY` and the three database passwords.
-3. `make up`. The first run builds the PHP 8.5 image, and MySQL creates the `{{APP_SLUG}}_rw` and `{{APP_SLUG}}_ro` users.
-4. `git config core.hooksPath .githooks`
-5. `make doctor`
+1. `gh repo clone {{GITHUB_OWNER}}/{{GITHUB_REPO}} && cd {{GITHUB_REPO}}`
+2. `git config core.hooksPath .githooks`
+3. If this machine has no `laravel/.env` yet, create one from `laravel/.env.example` and fill in `APP_KEY` and the three database passwords.
+4. `(cd laravel && composer install)`, which puts Sail in place for the make targets.
+5. `make up`. The first run builds the PHP 8.5 image, and MySQL creates the `{{APP_SLUG}}_rw` and `{{APP_SLUG}}_ro` users.
+6. `make npm-install`, `make migrate`, then `make doctor`.
 
 ## Common commands
 

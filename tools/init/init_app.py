@@ -51,6 +51,7 @@ from placeholders import (  # noqa: E402
 )
 
 ENV_EXAMPLE = "laravel/.env.example"
+COMPOSER_LOCK = "laravel/composer.lock"
 ENV = "laravel/.env"
 SUMMARY = "docs/initialisation.md"
 
@@ -84,6 +85,23 @@ def github_remote(root: Path = REPO_ROOT) -> tuple[str, str] | None:
     return (match.group(1), match.group(2)) if match else None
 
 
+def laravel_version(root: Path = REPO_ROOT) -> str:
+    """The laravel/framework version the template ships, from composer.lock.
+
+    This, not a git tag, is what identifies the template a repository came
+    from: GitHub copies a template's files but not its tags, so in a new
+    repository `git describe` only ever finds the app's own first commit.
+    """
+    try:
+        lock = json.loads((root / COMPOSER_LOCK).read_text())
+    except (OSError, ValueError):
+        return "unknown"
+    for package in lock.get("packages", []):
+        if package.get("name") == "laravel/framework":
+            return str(package.get("version", "unknown")).lstrip("v")
+    return "unknown"
+
+
 def default_slug(repo: str) -> str:
     slug = re.sub(r"[^a-z0-9]", "", repo.lower())
     slug = re.sub(r"^[0-9]+", "", slug)
@@ -108,6 +126,7 @@ def detect(root: Path = REPO_ROOT) -> dict:
             "port_suffix": "100",
         },
         "template_ref": git("describe", "--tags", "--always", root=root, check=False),
+        "laravel_version": laravel_version(root),
     }
 
 
@@ -240,7 +259,7 @@ def build_env(example: str, generate: bool) -> str:
     return env
 
 
-def summary(values: dict[str, str], generated: bool, template_ref: str, when: str) -> str:
+def summary(values: dict[str, str], generated: bool, template_ref: str, laravel: str, when: str) -> str:
     s, p = values["APP_SLUG"], values["PORT_SUFFIX"]
     owner, repo = values["GITHUB_OWNER"], values["GITHUB_REPO"]
     passwords = (
@@ -250,7 +269,7 @@ def summary(values: dict[str, str], generated: bool, template_ref: str, when: st
     )
     return f"""# Initialisation
 
-**Status**: Generated {when} by `tools/init/init_app.py` (the init-laravel-app skill) from template `{template_ref}`. Record only: re-running init is refused.
+**Status**: Generated {when} by `tools/init/init_app.py` (the init-laravel-app skill) from the Laravel template carrying Laravel {laravel}, at commit `{template_ref}`. Record only: re-running init is refused.
 
 ## Application
 
@@ -306,13 +325,14 @@ def apply(answers: dict, root: Path = REPO_ROOT, dry_run: bool = False) -> str:
     values = validate(answers)
     generate = bool(answers.get("generate_passwords"))
     template_ref = git("describe", "--tags", "--always", root=root, check=False) or "unknown"
+    laravel = laravel_version(root)
     when = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     contents, renames = plan(values, root)
     moves = directory_renames(renames)
     example = contents.get(ENV_EXAMPLE, (root / ENV_EXAMPLE).read_text())
     env = build_env(example, generate)
-    text = summary(values, generate, template_ref, when)
+    text = summary(values, generate, template_ref, laravel, when)
 
     if dry_run:
         return (
@@ -336,6 +356,7 @@ def apply(answers: dict, root: Path = REPO_ROOT, dry_run: bool = False) -> str:
     marker = {
         "initialised_at": when,
         "template_ref": template_ref,
+        "laravel_version": laravel,
         "values": values,
         "passwords_generated": generate,
     }

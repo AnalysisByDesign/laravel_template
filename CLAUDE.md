@@ -13,7 +13,7 @@ When changing the template itself, rather than an app built from it:
 - A YAML value that starts with a placeholder must be quoted (`name: "{{SKILL_PREFIX}}-merge"`). Bare `{{` begins a YAML flow mapping.
 - Placeholders have no spaces inside the braces, which keeps Blade's `{{ $x }}` and Actions' `${{ github.sha }}` out of the pattern.
 - `python3 tools/init/check_placeholders.py` reports the count while the repo is a template, and fails an initialised repo that still has any.
-- Tag each template release with the Laravel version it carries.
+- Tag each template release with the Laravel version it carries (`laravel-13.38.0`). Tags aren't copied into apps created from the template, so init records the version it read from `laravel/composer.lock` instead.
 <!-- TEMPLATE-ONLY:END -->
 
 ## What this project is

@@ -11,7 +11,7 @@
 #   scripts/deploy/verify.sh <base-url>
 #   VERIFY_BASE_URL=<base-url> scripts/deploy/verify.sh
 #
-# <base-url> is the public origin to verify against, e.g. https://example.com
+# <base-url> is the public origin to verify against, e.g. https://{{PRODUCTION_DOMAIN}}
 # (passed from deploy.yml's PRODUCTION_URL variable, so this script
 # stays testable against any origin).
 #

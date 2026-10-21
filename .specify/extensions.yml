@@ -102,13 +102,13 @@ hooks:
     prompt: Commit specification changes?
     description: Auto-commit after specification
     condition: null
-  - extension: tpl
-    command: tpl.session.name
+  - extension: "{{SKILL_PREFIX}}"
+    command: "{{SKILL_PREFIX}}.session.name"
     enabled: true
     optional: false
     priority: 20
     prompt: Name this session for the spec?
-    description: Give the /rename command naming this session for the spec (tpl-session-name skill)
+    description: Give the /rename command naming this session for the spec ({{SKILL_PREFIX}}-session-name skill)
     condition: null
   after_clarify:
   - extension: git

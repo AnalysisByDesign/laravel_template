@@ -21,7 +21,7 @@ name: Deploy
 #   variable DEPLOY_TAG_VALUE      EC2 tag value identifying deploy targets
 #   variable DEPLOY_COMMAND        on-instance deploy script path
 #   variable DEPLOY_CHECKOUT_PATH  on-instance git checkout, read to assert the deployed SHA
-#   variable PRODUCTION_URL        e.g. https://example.com
+#   variable PRODUCTION_URL        e.g. https://{{PRODUCTION_DOMAIN}}
 
 on:
   release:
@@ -46,6 +46,9 @@ permissions:
 jobs:
   deploy:
     name: deploy
+    # Only the application's own repository releases and deploys: never the
+    # template it came from, and never a fork. Filled in by init.
+    if: github.repository == '{{GITHUB_OWNER}}/{{GITHUB_REPO}}'
     runs-on: ubuntu-latest
     environment: production
     steps:

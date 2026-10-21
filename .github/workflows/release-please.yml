@@ -39,6 +39,9 @@ permissions:
 
 jobs:
   release-please:
+    # Only the application's own repository releases and deploys: never the
+    # template it came from, and never a fork. Filled in by init.
+    if: github.repository == '{{GITHUB_OWNER}}/{{GITHUB_REPO}}'
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}

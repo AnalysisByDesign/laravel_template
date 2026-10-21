@@ -1,7 +1,7 @@
 # Explicit Compose project name so containers/volumes/networks are namespaced
-# app-laravel-*. The default (directory name, `laravel`) collides with other
-# local apps following the same <project>/laravel layout. Rename per project.
-name: app-laravel
+# {{APP_SLUG}}-laravel-*. The default (directory name, `laravel`) collides with other
+# local apps following the same <project>/laravel layout.
+name: "{{APP_SLUG}}-laravel"
 
 services:
     laravel.test:
@@ -10,7 +10,7 @@ services:
             dockerfile: Dockerfile
             args:
                 WWWGROUP: '${WWWGROUP}'
-        image: 'sail-8.5/app'
+        image: 'sail-8.5/{{APP_SLUG}}'
         extra_hosts:
             - 'host.docker.internal:host-gateway'
         ports:
@@ -45,14 +45,14 @@ services:
         build:
             context: './docker/caddy'
             dockerfile: Dockerfile
-        image: 'app/caddy-route53'
+        image: '{{APP_SLUG}}/caddy-route53'
         restart: unless-stopped
         ports:
             - '${CADDY_HTTP_PORT:-80}:80'
             - '${CADDY_HTTPS_PORT:-443}:443'
             - '${CADDY_HTTPS_PORT:-443}:443/udp'
         environment:
-            CADDY_BASE_DOMAIN: '${CADDY_BASE_DOMAIN:-app.test}'
+            CADDY_BASE_DOMAIN: '${CADDY_BASE_DOMAIN:-{{LOCAL_DOMAIN}}}'
             CADDY_TLS_MODE: '${CADDY_TLS_MODE:-internal}'
             CADDY_ACME_EMAIL: '${CADDY_ACME_EMAIL:-}'
             # Where vite.<base domain> is proxied to.
@@ -82,16 +82,26 @@ services:
         ports:
             - '${FORWARD_DB_PORT:-3306}:3306'
         environment:
-            MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
+            # Root has its own password, separate from the application's
+            # read-write user. Only make backup/restore/test-db-grant use it.
+            MYSQL_ROOT_PASSWORD: '${DB_ROOT_PASSWORD}'
             MYSQL_ROOT_HOST: '%'
             MYSQL_DATABASE: '${DB_DATABASE}'
+            # The application's read-write user (<slug>_rw).
             MYSQL_USER: '${DB_USERNAME}'
             MYSQL_PASSWORD: '${DB_PASSWORD}'
-            MYSQL_ALLOW_EMPTY_PASSWORD: 1
+            # Read-only user (<slug>_ro), created on first boot by
+            # docker/mysql/20-create-readonly-user.sh.
+            MYSQL_RO_USER: '${DB_RO_USERNAME:-}'
+            MYSQL_RO_PASSWORD: '${DB_RO_PASSWORD:-}'
             MYSQL_EXTRA_OPTIONS: '${MYSQL_EXTRA_OPTIONS:-}'
+        # The initdb.d scripts run once, on an empty volume. Changing a user
+        # or password afterwards means doing it by hand, or `make backup`,
+        # removing the sail-mysql volume and `make restore`.
         volumes:
             - 'sail-mysql:/var/lib/mysql'
             - './vendor/laravel/sail/database/mysql/create-testing-database.sh:/docker-entrypoint-initdb.d/10-create-testing-database.sh'
+            - './docker/mysql/20-create-readonly-user.sh:/docker-entrypoint-initdb.d/20-create-readonly-user.sh:ro'
         networks:
             - sail
         healthcheck:
@@ -99,7 +109,7 @@ services:
                 - CMD
                 - mysqladmin
                 - ping
-                - '-p${DB_PASSWORD}'
+                - '-p${DB_ROOT_PASSWORD}'
             retries: 3
             timeout: 5s
         # cpus: is a ceiling on CPU time via the kernel CFS quota, not a

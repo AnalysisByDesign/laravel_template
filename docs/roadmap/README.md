@@ -23,7 +23,7 @@ python3 tools/roadmap/build.py
 
 `--check` reports whether the committed files are current without writing. `--no-github` skips the issue lane for an offline or unauthenticated run.
 
-**Staleness is not a CI gate, deliberately.** The fix lane carries open GitHub issues, which change without any commit, so a freshness check would fail whenever somebody opened an issue. CI runs the generator's unit tests in the `docs-guard` job; keeping the files current is the `tpl-merge` skill's job, from post-merge `main`.
+**Staleness is not a CI gate, deliberately.** The fix lane carries open GitHub issues, which change without any commit, so a freshness check would fail whenever somebody opened an issue. CI runs the generator's unit tests in the `docs-guard` job; keeping the files current is the `{{SKILL_PREFIX}}-merge` skill's job, from post-merge `main`.
 
 ## Markdown, not PDF
 

@@ -9,16 +9,17 @@ SAIL = cd laravel && ./vendor/bin/sail
 
 .PHONY: help up down restart logs shell mysql tinker dev-clean \
         caddy-logs caddy-reload caddy-rebuild \
-        migrate seed fresh rollback \
+        migrate seed fresh rollback backup restore doctor \
         npm-install dev dev-vite dev-queue build \
         test test-parallel test-serial test-db-grant test-branch test-coverage \
-        lint pint stan artisan db-snapshot \
+        lint pint stan artisan \
         composer-install composer-update env-sync
 
 help:
 	@echo ""
 	@echo "  FIRST TIME SETUP (new machine):"
-	@echo "    See README.md"
+	@echo "    See README.md, then:"
+	@echo "    make doctor           Check tools, .env, hooks and the stack (read-only)"
 	@echo ""
 	@echo "  DAILY COMMANDS:"
 	@echo "    make up               Start all containers"
@@ -38,11 +39,12 @@ help:
 	@echo "  DATABASE:"
 	@echo "    make migrate          Run pending migrations"
 	@echo "    make seed             Run seeders"
-	@echo "    make fresh            Drop all tables, re-migrate, re-seed"
+	@echo "    make fresh            Backup, then drop all tables, re-migrate, re-seed (asks for 'yes')"
 	@echo "    make rollback         Roll back last migration batch"
 	@echo "    make mysql            MySQL CLI"
 	@echo "    make tinker           Laravel Tinker REPL"
-	@echo "    make db-snapshot      Dump dev DB to laravel/storage/backups (gitignored)"
+	@echo "    make backup           Timestamped dump to backups/ (gitignored)"
+	@echo "    make restore          Restore the newest dump; DUMP=<file> for a named one (asks for 'yes')"
 	@echo ""
 	@echo "  TESTING & QUALITY:"
 	@echo "    make test             Whole Pest suite in parallel; with ARGS, one process"
@@ -108,7 +110,11 @@ migrate:
 seed:
 	$(SAIL) artisan db:seed --force
 
+# Destructive, so it asks a person for a typed "yes" at the terminal (an
+# agent's shell has none and is always refused) and takes a backup first.
 fresh:
+	@scripts/dev/confirm.sh "Drop every table in the dev database, re-migrate and re-seed? A backup is taken first."
+	@scripts/dev/db-backup.sh
 	$(SAIL) artisan migrate:fresh --seed --force
 
 rollback:
@@ -120,12 +126,17 @@ mysql:
 tinker:
 	$(SAIL) artisan tinker
 
-# Snapshot the dev database to a gitignored, timestamped dump so an
-# incident is a restore, not forensics. Run before risky sessions.
-db-snapshot:
-	@mkdir -p laravel/storage/backups
-	$(SAIL) exec -T mysql sh -c 'mysqldump -uroot -p"$$MYSQL_ROOT_PASSWORD" --single-transaction "$$MYSQL_DATABASE"' | gzip > storage/backups/dev-$$(date +%Y%m%d-%H%M%S).sql.gz
-	@ls -lh laravel/storage/backups/ | tail -3
+# Dump the dev database to backups/<db>-YYYYmmdd-HHMMSS.sql.gz (gitignored),
+# so an incident is a restore, not forensics. Run before risky sessions.
+backup:
+	@scripts/dev/db-backup.sh
+
+# Restore the newest dump, or a named one: make restore DUMP=<file>.
+# Asks for a typed "yes", backs up the current database first, and refuses
+# a dump of a different database.
+DUMP ?= latest
+restore:
+	@scripts/dev/db-restore.sh "$(DUMP)"
 
 # ── Frontend ──────────────────────────────────────────────────────────────────
 
@@ -163,6 +174,12 @@ dev-queue:
 
 build: npm-install
 	$(SAIL) npm run build
+
+# ── Health ────────────────────────────────────────────────────────────────────
+
+# Read-only check of the host tools, laravel/.env, git hooks and the stack.
+doctor:
+	@scripts/dev/doctor.sh
 
 # ── Testing & quality ─────────────────────────────────────────────────────────
 

@@ -22,17 +22,17 @@ PHP_BIN ?= /usr/bin/php
 APP_DIR ?= laravel
 
 # The SSM parameter the whole .env is rendered from.
-ENV_PARAM ?= /laravel/example.com/env
+ENV_PARAM ?= /{{APP_SLUG}}/production/env
 
 # The PHP-FPM unit serving the app. Reloading is the supported way to reset
 # opcache without dropping requests.
 FPM_SERVICE ?= php-fpm
 
 # The cron.d file running the Laravel scheduler every minute.
-CRON_FILE ?= /etc/cron.d/app-scheduler
+CRON_FILE ?= /etc/cron.d/{{APP_SLUG}}-scheduler
 
 # Public hostname, used only to print a usable maintenance bypass URL.
-APP_HOST ?= example.com
+APP_HOST ?= {{PRODUCTION_DOMAIN}}
 
 ARTISAN = cd $(APP_DIR) && $(PHP_BIN) artisan
 

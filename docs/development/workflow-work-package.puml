@@ -34,7 +34,7 @@ skinparam package {
 package "Capture" {
   rectangle "**Voice planning session**\non claude.ai, usually mobile" as session #FFF8F0
   rectangle "**Session brief**\ndocs/sessions/YYYY-MM-DD-topic.md" as brief
-  rectangle "**tpl-review-session-notes**\ncreates what the brief declares" as notes #F0F6FF
+  rectangle "**{{SKILL_PREFIX}}-review-session-notes**\ncreates what the brief declares" as notes #F0F6FF
 }
 
 package "Backlog" {
@@ -42,20 +42,20 @@ package "Backlog" {
 }
 
 package "Promotion  (on main)" {
-  rectangle "**tpl-promote-wp**\nmoves it to docs/work-packages/,\noptional batch number from the operator,\nwrites **Target branch**" as promote #F0F6FF
+  rectangle "**{{SKILL_PREFIX}}-promote-wp**\nmoves it to docs/work-packages/,\noptional batch number from the operator,\nwrites **Target branch**" as promote #F0F6FF
   rectangle "**feature/wp-slug**\ncut from main and pushed;\nno batch number in the name" as featbranch #F0F6FF
 }
 
 package "Work  (task branches into feature/wp-slug)" {
   rectangle "**Task branch**\none section or step of the package;\nmixed ownership is sectioned,\nnot split" as task
   rectangle "**the operator's sections**\nAWS, DNS, accounts, rulings:\nnot Claude Code tasks" as op #FFF8F0
-  rectangle "**tpl-merge**, task merge\nchecks (task tier) green,\npest on the operator's say so;\nsync onto the feature branch" as taskmerge #F0F6FF
+  rectangle "**{{SKILL_PREFIX}}-merge**, task merge\nchecks (task tier) green,\npest on the operator's say so;\nsync onto the feature branch" as taskmerge #F0F6FF
 }
 
 package "Release" {
-  rectangle "**tpl-merge**, feature merge\nmain merged in, full checks,\npest mandatory, migration order" as featmerge #F0F6FF
+  rectangle "**{{SKILL_PREFIX}}-merge**, feature merge\nmain merged in, full checks,\npest mandatory, migration order" as featmerge #F0F6FF
   rectangle "**/code-review**\nThe operator triggers it.\nNever launched by a skill." as review #FFF0F0
-  rectangle "**tpl-archive-wp**\nin the feature merge's PR:\nto done/, batch number stripped,\nstatus restated" as archive #F0F6FF
+  rectangle "**{{SKILL_PREFIX}}-archive-wp**\nin the feature merge's PR:\nto done/, batch number stripped,\nstatus restated" as archive #F0F6FF
   rectangle "**main**\nindexes and roadmap regenerated\nin a docs-only follow-up PR" as main
   rectangle "**release-please PR**\nmerging it publishes the\nrelease and fires the deploy" as release
   rectangle "**Live**" as live #F0FFF0

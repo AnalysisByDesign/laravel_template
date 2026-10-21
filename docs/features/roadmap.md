@@ -1,6 +1,6 @@
 # Roadmap
 
-Phased build order for this project. Hand-maintained: this is the record of intent, not the generated view in `docs/roadmap/`. `tpl-po-check` and `tpl-review-backlog` read the two sections below by heading, so keep their titles exact.
+Phased build order for this project. Hand-maintained: this is the record of intent, not the generated view in `docs/roadmap/`. `{{SKILL_PREFIX}}-po-check` and `{{SKILL_PREFIX}}-review-backlog` read the two sections below by heading, so keep their titles exact.
 
 **Areas**: infrastructure
 

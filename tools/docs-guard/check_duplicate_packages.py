@@ -13,7 +13,7 @@ A check that only runs when somebody remembers to paste it reports clean
 because it was never run, so this is the same comparison on every pull request.
 
 Scope is both archive pairs, because the same squash-merge shape applies to
-feature documents, which `tpl-archive-spec` moves between the same kind of live
+feature documents, which `{{SKILL_PREFIX}}-archive-spec` moves between the same kind of live
 and `done/` folders.
 
 Host-side stdlib Python rather than a Pest test, for the same reason

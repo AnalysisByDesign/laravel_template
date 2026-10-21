@@ -1,6 +1,6 @@
 # Membership of the mobile context subset.
 #
-# The tpl-prepare-docs-reference skill's subset.py reads this file, rebuilds every symlink
+# The {{SKILL_PREFIX}}-prepare-docs-reference skill's subset.py reads this file, rebuilds every symlink
 # in this folder from it, and generates reference.md alongside. Edit this file
 # to change what is uploaded; never add or remove a symlink by hand.
 #
@@ -31,4 +31,4 @@ docs/work-packages/README.md
 
 # The session brief template. It lives under .claude/, which the connector does
 # not sync, so the upload is the only route by which a claude.ai session can see it.
-.claude/skills/tpl-review-session-notes/brief-template.md
+.claude/skills/{{SKILL_PREFIX}}-review-session-notes/brief-template.md

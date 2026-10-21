@@ -20,8 +20,9 @@ Rules (binding — see .specify/memory/constitution.md):
 
 1. TDD is mandatory (see the constitution's testing principle). Write
    the Pest test first, run it, confirm it fails, then implement.
-   Never mark a task done with a red suite. Run only the test file
-   the task touches; CI on the PR runs the full suite.
+   Never mark a task done with a red suite. Iterate on the test file
+   the task touches (`make test ARGS="tests/..."`), then run the
+   whole suite with `make test` before every commit: it must be green.
 2. Business logic lives in plain PHP service classes; controllers
    and UI components render and delegate only.
 3. Follow every other principle in the constitution as written; if

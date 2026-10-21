@@ -32,3 +32,6 @@ specs/**/.handover.md
 /core
 laravel/core
 core.[0-9]*
+
+# Database dumps from make backup (scripts/dev/db-backup.sh)
+/backups/

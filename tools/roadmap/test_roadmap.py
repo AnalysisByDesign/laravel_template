@@ -148,7 +148,7 @@ class TestSliceRendering(unittest.TestCase):
 
     Fixtures rather than real documents, because nothing in the repository has
     been split yet. The fixtures use the exact `**Parent**` line that
-    `tpl-split-feature` writes and `tools/docs-guard/check_splits.py` enforces,
+    `{{SKILL_PREFIX}}-split-feature` writes and `tools/docs-guard/check_splits.py` enforces,
     so this is a test of the shared contract rather than of a shape invented
     here.
     """

@@ -31,23 +31,23 @@ skinparam package {
 }
 
 package "Capture" {
-  rectangle "**GitHub issue**\nraised by hand, by a brief\nthrough tpl-review-session-notes,\nor by a QA sweep" as issue
+  rectangle "**GitHub issue**\nraised by hand, by a brief\nthrough {{SKILL_PREFIX}}-review-session-notes,\nor by a QA sweep" as issue
 }
 
 package "Where does it belong?" {
-  rectangle "**tpl-fix-branch**\none issue or several, one target;\nlists the open feature/* branches,\nmain last; the operator chooses;\nthe target is recorded on each issue" as fixskill #F0F6FF
+  rectangle "**{{SKILL_PREFIX}}-fix-branch**\none issue or several, one target;\nlists the open feature/* branches,\nmain last; the operator chooses;\nthe target is recorded on each issue" as fixskill #F0F6FF
 }
 
 package "Fix for a feature in flight" {
   rectangle "**fix/N-slug**\ncut from feature/..." as ffix
-  rectangle "**tpl-merge**, task merge\nchecks (task tier) green,\nno pest on the fix branch" as ftask #F0F6FF
+  rectangle "**{{SKILL_PREFIX}}-merge**, task merge\nchecks (task tier) green,\nno pest on the fix branch" as ftask #F0F6FF
   rectangle "**feature/...**\nthe fix rides with the feature" as feat #F0F6FF
-  rectangle "**tpl-merge**, feature merge\npest over everything,\nthe fix included" as featmerge #F0F6FF
+  rectangle "**{{SKILL_PREFIX}}-merge**, feature merge\npest over everything,\nthe fix included" as featmerge #F0F6FF
 }
 
 package "Production fix, no owning feature" {
   rectangle "**fix/N-slug**\ncut from main;\nbatch several fixes to\npay for one pest run" as pfix #FFF0F0
-  rectangle "**tpl-merge**, direct merge\nfull checks, pest **mandatory**:\nnothing later catches it" as pmerge #F0F6FF
+  rectangle "**{{SKILL_PREFIX}}-merge**, direct merge\nfull checks, pest **mandatory**:\nnothing later catches it" as pmerge #F0F6FF
 }
 
 package "Release" {

@@ -6,7 +6,7 @@
   "packages": {
     ".": {
       "release-type": "simple",
-      "package-name": "laravel-template",
+      "package-name": "{{APP_SLUG}}",
       "changelog-path": "CHANGELOG.md",
       "initial-version": "0.1.0"
     }

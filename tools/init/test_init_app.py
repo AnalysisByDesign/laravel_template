@@ -60,6 +60,10 @@ class InitTest(unittest.TestCase):
         self.write(".claude/skills/{{SKILL_PREFIX}}-merge/SKILL.md", '---\nname: "{{SKILL_PREFIX}}-merge"\n---\nSee /{{SKILL_PREFIX}}-sync-local.\n')
         self.write("tools/init/notes.md", "{{APP_SLUG}} stays: init tooling is excluded.\n")
         self.write("docs/logo.png", "\0binary {{APP_SLUG}}")
+        self.write("laravel/composer.lock", json.dumps({"packages": [
+            {"name": "laravel/tinker", "version": "v3.0.0"},
+            {"name": "laravel/framework", "version": "v13.38.0"},
+        ]}))
         self.git("init", "-q")
         self.git("add", "-A")
         self.commit("template")
@@ -85,6 +89,7 @@ class InitTest(unittest.TestCase):
         facts = init_app.detect(self.root)
         self.assertEqual((facts["github_owner"], facts["github_repo"]), ("acme-co", "acme-orders"))
         self.assertEqual(facts["suggested"]["app_slug"], "acmeorders")
+        self.assertEqual(facts["laravel_version"], "13.38.0")
         self.assertFalse(facts["initialised"])
 
     def test_apply_substitutes_renames_and_strips_template_blocks(self) -> None:
@@ -194,6 +199,16 @@ class InitTest(unittest.TestCase):
         self.assertEqual(marker["values"]["APP_SLUG"], "acme")
         self.assertTrue(marker["passwords_generated"])
         self.assertNotIn("APP_KEY", json.dumps(marker))
+
+    def test_records_the_laravel_version_from_composer_lock(self) -> None:
+        init_app.apply(dict(ANSWERS), self.root)
+        marker = json.loads((self.root / MARKER).read_text())
+        self.assertEqual(marker["laravel_version"], "13.38.0")
+        self.assertIn("carrying Laravel 13.38.0", (self.root / init_app.SUMMARY).read_text())
+
+    def test_a_missing_lock_records_unknown(self) -> None:
+        (self.root / "laravel/composer.lock").unlink()
+        self.assertEqual(init_app.laravel_version(self.root), "unknown")
 
 
 class SampleTest(unittest.TestCase):

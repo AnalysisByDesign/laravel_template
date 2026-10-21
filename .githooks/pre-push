@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# =============================================================================
+# Repo pre-push hook (.githooks/pre-push)
+#
+# 1. Blocks any direct push to 'main' (including deletion/force). All work
+#    lands on a feature branch and merges to main via PR; see CLAUDE.md
+#    "Branching & PR workflow". Where GitHub-side branch protection is
+#    unavailable (free-tier private repos), this hook is the enforcement;
+#    where .github/rulesets/main.json is applied, it is the early warning.
+#
+# 2. Chains to the user's global pre-push hook (~/.git-hooks/pre-push, e.g.
+#    the Claude security review). This repo sets a local core.hooksPath
+#    override, which would otherwise silently disable global hooks.
+#
+# Setup after a fresh clone:  git config core.hooksPath .githooks
+#
+# Deliberate, human-authorised direct push (bootstrap/emergency only):
+#   ALLOW_MAIN_PUSH=1 git push origin main
+# (git push --no-verify also skips this hook entirely, as with any git hook,
+#  but that skips the global security review too; prefer the env var.)
+# =============================================================================
+
+set -uo pipefail
+
+REMOTE="${1:-}"
+URL="${2:-}"
+
+# Capture stdin so it can be both inspected here and replayed to the global hook.
+STDIN="$(cat)"
+
+if [ "${ALLOW_MAIN_PUSH:-0}" != "1" ]; then
+    while read -r _local_ref _local_sha remote_ref _remote_sha; do
+        [ -z "${remote_ref:-}" ] && continue
+        if [ "$remote_ref" = "refs/heads/main" ]; then
+            echo "" >&2
+            echo "❌ Direct push to 'main' is blocked in this repo." >&2
+            echo "   Work goes on a feature branch and merges via PR (CLAUDE.md: Branching & PR workflow)." >&2
+            echo "   Deliberate override (human-authorised only):" >&2
+            echo "     ALLOW_MAIN_PUSH=1 git push origin main" >&2
+            echo "" >&2
+            exit 1
+        fi
+    done <<< "$STDIN"
+fi
+
+# Chain to the global pre-push hook so its checks still run for this repo.
+GLOBAL_HOOK="$HOME/.git-hooks/pre-push"
+if [ -n "$STDIN" ] && [ -x "$GLOBAL_HOOK" ]; then
+    printf '%s\n' "$STDIN" | "$GLOBAL_HOOK" "$REMOTE" "$URL"
+    exit $?
+fi
+
+exit 0

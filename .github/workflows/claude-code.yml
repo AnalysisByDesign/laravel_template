@@ -1,0 +1,101 @@
+name: Claude Code Agent
+
+# Two ways to invoke Claude Code against a GitHub issue:
+#
+#   1. Ad hoc / single issue: comment "@claude ..." (or open an issue with
+#      @claude in the body). Runs interactively, same as a local Claude
+#      Code session: reads CLAUDE.md, uses the implementer/spec-reviewer
+#      subagents, opens a PR when done.
+#
+#   2. Fan-out: apply the "agent-ready" label to an issue. Runs
+#      automatically with a fixed prompt, no mention needed. Safe to label
+#      several issues at once PROVIDED they don't touch overlapping files;
+#      parallel runs on overlapping files produce conflicting PRs.
+#
+# Setup required before this does anything:
+#   - Merge this file to main via a normal reviewed PR (workflow files only
+#     run from the version on the default branch for issue/comment events).
+#   - Repo secret CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`, run
+#     locally while logged into the subscription account), the same secret
+#     the nightly fan-out uses. No GitHub App install needed; repo access is
+#     the Actions built-in GITHUB_TOKEN.
+#   - Test on one low-stakes issue before labelling a batch.
+#
+# Authentication goes through env: rather than with:, because on @v1 the
+# OAuth token can get dropped between the action's internal phases when
+# passed via with:, surfacing as "Environment variable validation failed".
+#
+# Write scope: GITHUB_TOKEN carries contents and pull-requests write so the
+# agent can push a branch and open a PR. What stops it pushing to main is
+# the main ruleset (.github/rulesets/main.json), which GITHUB_TOKEN cannot
+# bypass, plus the prompt's instruction. Until the ruleset is applied the
+# instruction is the only guard.
+
+on:
+  issue_comment:
+    types: [created]
+  issues:
+    types: [opened, labeled]
+
+concurrency:
+  group: claude-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  claude-interactive:
+    if: >
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'issues' && github.event.action == 'opened' && contains(github.event.issue.body, '@claude'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # No `prompt` input => interactive mode. trigger_phrase defaults
+          # to "@claude"; Claude reads the full issue/comment thread itself.
+
+  claude-automation:
+    if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'agent-ready'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_args: "--max-turns 60"
+          # The issue is read with gh rather than interpolated into the
+          # prompt, so its title and body reach Claude as issue content to
+          # judge, not as part of these instructions.
+          prompt: |
+            Read CLAUDE.md and .specify/memory/constitution.md before doing anything else.
+
+            Run `gh issue view ${{ github.event.issue.number }} --repo ${{ github.repository }}` to read the issue, then implement a fix for it.
+
+            Rules:
+            - Branch off main, name it fix/issue-${{ github.event.issue.number }}-<short-slug>. A fix/* PR into main runs pest without a label, so CI is the test gate.
+            - Follow CLAUDE.md conventions: Pest only with TDD (write a failing test first), config-driven values rather than hardcoded limits/defaults, zero em/en dashes in anything user-facing, Conventional Commits on every commit.
+            - Scope the change to this issue only. Do not touch unrelated components or specs, even if you notice something else that looks wrong nearby.
+            - Add or update Pest tests covering the fix.
+            - Push the branch and open a PR against main. Include "Closes #${{ github.event.issue.number }}" in the PR description, plus a short summary of the change and how it was tested.
+            - Do not merge the PR yourself and do not push to main directly.

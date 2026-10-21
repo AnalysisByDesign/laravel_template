@@ -1,0 +1,2 @@
+# Citations that are meant not to resolve. Tab separated: citing file, cited path, reason.
+# Read by build.py --check, which also reports any line here that nothing used.

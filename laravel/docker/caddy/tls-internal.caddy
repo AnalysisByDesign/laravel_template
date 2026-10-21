@@ -1,0 +1,6 @@
+# Imported when CADDY_TLS_MODE=internal (the default).
+#
+# Caddy issues the certificate from its own local CA. No AWS credentials
+# and no public DNS are involved. Browsers will warn unless Caddy's local
+# root is trusted on the machine.
+tls internal

@@ -1,0 +1,34 @@
+# Membership of the mobile context subset.
+#
+# The tpl-prepare-docs-reference skill's subset.py reads this file, rebuilds every symlink
+# in this folder from it, and generates reference.md alongside. Edit this file
+# to change what is uploaded; never add or remove a symlink by hand.
+#
+# One path or glob per line, relative to the repository root. A leading !
+# excludes. Only files are linked; the upload flattens paths to bare filenames,
+# so two members with the same filename are a collision the script refuses.
+# A pattern that matches nothing is also refused, so add a glob only once
+# something exists for it to match.
+#
+# The rule: documents the operator reasons out loud against, and only those.
+# Keep the set near twenty files and never past thirty. Shipped and archived
+# material stays out because it reaches desktop through the connector anyway.
+
+# Always in.
+CLAUDE.md
+.specify/memory/constitution.md
+# CHANGELOG.md   (add once release-please has written the first one)
+
+# Work packages: the folder README, whose table lists every live package with
+# its batch, owner, gate and standing. Add the current batch when one exists,
+# for example docs/work-packages/wp-000*.md.
+docs/work-packages/README.md
+
+# Features selected for development that have not yet been through
+# /speckit.specify: add docs/features/spec-[0-9][0-9][0-9]-*.md once the first
+# spec is promoted, with a ! exclude for each in-flight spec that already has a
+# specs/NNN-*/ directory.
+
+# The session brief template. It lives under .claude/, which the connector does
+# not sync, so the upload is the only route by which a claude.ai session can see it.
+.claude/skills/tpl-review-session-notes/brief-template.md

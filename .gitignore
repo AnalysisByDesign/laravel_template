@@ -1,0 +1,34 @@
+# OS / editor noise (app-level ignores live in laravel/.gitignore)
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
+.idea/
+.vscode/
+.secrets/
+.tmp/
+__pycache__/
+
+# PlantUML render output (source .puml files are tracked; PNGs are regenerated
+# locally via .githooks/pre-commit)
+specs/**/*.png
+
+# Implementer subagent handover notes: transient working state, written so a
+# subagent killed at its turn cap does not take its reasoning with it. Never
+# part of the spec record.
+specs/**/.handover.md
+
+# Which spec a spec-kit command acts on. Machine-local state, exactly like
+# laravel/.env. Tracked, it becomes one shared slot for the whole repository:
+# two checkouts on different specs each commit a diff to it, whichever merges
+# last becomes the pointer both use, and a spec-kit phase then writes into the
+# wrong specs/NNN-*/ with no error. `.specify/feature.json.example` shows the
+# shape; the specify command writes the file itself.
+.specify/feature.json
+
+# Core dumps (Graphviz has crashed rendering PlantUML and left one behind).
+# Anchored deliberately: macOS is case insensitive, so a bare "core" rule
+# would also ignore an app/Core directory.
+/core
+laravel/core
+core.[0-9]*

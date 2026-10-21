@@ -1,0 +1,745 @@
+name: CI
+
+# PR gate: style (Pint), static analysis (Larastan), dependency audits,
+# docs guards and deploy/hook script lint as one `checks` job, plus tests
+# and a coverage floor (Pest) as the `pest` gate. Job ids/names are stable
+# so they can be adopted verbatim as required status checks
+# (.github/rulesets/main.json requires `checks`).
+#
+# Actions-minutes controls:
+#   - pest is opt-in per PR via the run-pest label, except where it is
+#     mandatory (see the pest-assets job);
+#   - the every-push job skips while a PR is a draft and runs when it is
+#     marked ready for review;
+#   - a newer run on the same PR cancels the one in progress.
+# The every-push job deliberately still runs on any `labeled` event. A job
+# skipped by its `if` reports as passed to a required status check, so
+# skipping it on an unrelated label would let that label turn a failing PR
+# green.
+#
+# workflow_dispatch is the owner coverage-override escape hatch
+# ("overridable but logged"): a manual run against a branch runs the suite
+# via the separate `coverage-override` job, which reports coverage without
+# enforcing the floor. Only that job runs on dispatch.
+
+on:
+  pull_request:
+    # labeled is included so adding the run-pest label (below) re-fires
+    # the workflow and lets the pest job run on demand.
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Why is the coverage floor being overridden? (required, recorded in the run summary)'
+        required: true
+        type: string
+
+# One live run per PR. A manual dispatch has no PR number, so it falls
+# back to its own run id and never cancels anything.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  PHP_VERSION: '8.5'
+  PHP_EXTENSIONS: mbstring, dom, curl, pdo_mysql, zip, bcmath, intl, ctype, fileinfo, xml, tokenizer, gd
+
+jobs:
+  # The every-push gate, as one job: pint, larastan, audit, docs-guard and
+  # shell-lint. Most of them run for seconds, and separate jobs would each
+  # be billed a whole minute on every push; as one job they share a
+  # checkout and a composer install and are billed once.
+  #
+  # One job means one line in the PR's checks list, so the per-check
+  # results go to a single PR comment instead, created on the first run and
+  # edited in place on every later one (the marker below finds it), and to
+  # the run summary. Every check step carries continue-on-error so a red
+  # one never hides the ones after it; the last step then fails the job if
+  # any gating check failed. `checks` is the context to require.
+  #
+  # Two tiers, chosen by the PR's base branch. Gating by base rather than by label, because labels
+  # attach to PRs, not branches, and a label a workflow applies with
+  # GITHUB_TOKEN triggers nothing.
+  #   task: a PR into a feature/* branch. Only the checks that can judge a
+  #     file on its own content run, and only when files they judge
+  #     changed: pint on the changed PHP files, an audit when a lockfile
+  #     changed. docs-guard and
+  #     shell-lint always run, since they take seconds and need no setup.
+  #     larastan is deferred: analysing a subset of files reports false
+  #     errors (an unused trait whose consumer was not in the subset) and
+  #     misses errors the change causes elsewhere.
+  #   full: every other PR, including a feature branch into main, and a
+  #     manual dispatch. Everything runs, over the whole repository.
+  checks:
+    name: checks
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        # Full history: the task tier diffs against the base commit, and the
+        # roadmap generator (when present) reads `git log`.
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Decides the tier and which checks apply. Each flag is 1 when that
+      # check runs; on the full tier they all are. The PR's own changes are
+      # the diff between its base commit and the merge commit checked out.
+      - name: Decide what to check
+        id: scope
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = pull_request ] && [[ "$BASE_REF" == feature/* ]]; then
+            tier=task
+            git diff --name-only "$BASE_SHA" HEAD > changed.txt
+          else
+            tier=full
+          fi
+          flag() { # pattern: 1 on the full tier, else 1 when a changed file matches
+            if [ "$tier" = full ]; then echo 1; elif grep -Eq "$1" changed.txt; then echo 1; else echo 0; fi
+          }
+          pint=$(flag '^laravel/.*\.php$')
+          larastan=$([ "$tier" = full ] && echo 1 || echo 0)
+          composer_audit=$(flag '^laravel/composer\.lock$')
+          npm_audit=$(flag '^laravel/package-lock\.json$')
+          php=$([ "$pint$larastan$composer_audit" != 000 ] && echo 1 || echo 0)
+          if [ "$tier" = task ]; then
+            # Pint takes paths relative to laravel/; deleted files are dropped.
+            # Blade files are left out, as a full `pint --test` leaves them
+            # out: named explicitly, Pint formats a single-file component's
+            # embedded class and fails on layout it never checks otherwise.
+            grep -E '^laravel/.*\.php$' changed.txt | grep -vE '\.blade\.php$' | sed 's|^laravel/||' \
+              | while read -r f; do [ -f "laravel/$f" ] && echo "$f"; done > laravel/pint-files.txt || true
+          fi
+          {
+            echo "tier=$tier"; echo "php=$php"; echo "pint=$pint"; echo "larastan=$larastan"
+            echo "composer_audit=$composer_audit"; echo "npm_audit=$npm_audit"
+          } | tee -a "$GITHUB_OUTPUT"
+
+      - name: Set up PHP
+        if: steps.scope.outputs.php == '1'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache Composer dependencies
+        if: steps.scope.outputs.php == '1'
+        uses: actions/cache@v6
+        with:
+          path: laravel/vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('laravel/composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-
+
+      - name: Install PHP dependencies
+        if: steps.scope.outputs.pint == '1' || steps.scope.outputs.larastan == '1'
+        working-directory: laravel
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Set up Node
+        if: steps.scope.outputs.npm_audit == '1'
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      # --- pint ---
+
+      - name: Pint (check mode)
+        id: pint
+        if: steps.scope.outputs.pint == '1'
+        continue-on-error: true
+        working-directory: laravel
+        run: |
+          if [ "${{ steps.scope.outputs.tier }}" = task ]; then
+            [ -s pint-files.txt ] || { echo "No changed PHP files left to check."; exit 0; }
+            xargs vendor/bin/pint --test < pint-files.txt
+          else
+            vendor/bin/pint --test
+          fi
+
+      # --- larastan ---
+
+      - name: Larastan (static analysis)
+        id: larastan
+        if: steps.scope.outputs.larastan == '1'
+        continue-on-error: true
+        working-directory: laravel
+        run: vendor/bin/phpstan analyse
+
+      # --- audit ---
+      #
+      # Dependency advisories, from the lockfiles only, as the signal for
+      # plans without Dependabot security updates. The runtime steps gate: a
+      # release-please pull request is a pull request to main, so a runtime
+      # advisory stops the release. The including-dev steps are
+      # informational: build-time only, a different risk, and never a reason
+      # to block a release on their own. The report step keeps that split.
+
+      - name: Composer advisories (runtime)
+        id: audit_composer
+        if: steps.scope.outputs.composer_audit == '1'
+        continue-on-error: true
+        working-directory: laravel
+        run: composer audit --locked --no-dev --format=plain
+
+      - name: Composer advisories (including dev, informational)
+        id: audit_composer_dev
+        if: steps.scope.outputs.composer_audit == '1'
+        continue-on-error: true
+        working-directory: laravel
+        run: composer audit --locked --format=plain
+
+      - name: npm advisories (production)
+        id: audit_npm
+        if: steps.scope.outputs.npm_audit == '1'
+        continue-on-error: true
+        working-directory: laravel
+        run: npm audit --omit=dev
+
+      - name: npm advisories (including dev, informational)
+        id: audit_npm_dev
+        if: steps.scope.outputs.npm_audit == '1'
+        continue-on-error: true
+        working-directory: laravel
+        run: npm audit
+
+      # --- docs-guard ---
+      #
+      # Host-side stdlib Python, because the Sail container mounts laravel/
+      # only. What each guard protects:
+      #   check_areas.py: every feature document carries a known Areas tag
+      #     from docs/features/areas.json.
+      #   check_local_state.py: `.specify/feature.json` stays untracked;
+      #     tracked, it is one shared slot that a later merge silently
+      #     re-points.
+      #   check_spec_hooks.py: the project's own spec-kit hooks stay
+      #     registered in `.specify/extensions.yml`, which spec-kit also
+      #     rewrites.
+      #   check_duplicate_packages.py: no document exists under two names.
+      # Roadmap staleness is deliberately not gated: docs/roadmap/*.md
+      # includes open issues, which change without a commit. Regeneration is
+      # the tpl-merge skill's fourth phase.
+      #
+      # A tool directory or guard that is absent is reported as a warning,
+      # never skipped silently, so deleting one shows up on every PR.
+
+      - name: Docs guard unit tests
+        id: docs_tests
+        continue-on-error: true
+        run: |
+          set -e
+          for d in tools/docs-guard tools/po-check tools/roadmap; do
+            if [ -d "$d" ]; then
+              python3 -m unittest discover "$d"
+            else
+              echo "::warning title=Docs guard tests missing::$d not present, its tests did not run"
+            fi
+          done
+
+      - name: Docs guards
+        id: docs_guards
+        continue-on-error: true
+        run: |
+          set -e
+          run_guard() {
+            if [ -f "$1" ]; then
+              python3 "$@"
+            else
+              echo "::warning title=Docs guard missing::$1 not present, guard did not run"
+            fi
+          }
+          run_guard tools/docs-guard/check_areas.py --require-tags
+          run_guard tools/docs-guard/check_local_state.py
+          run_guard tools/docs-guard/check_spec_hooks.py
+          run_guard tools/docs-guard/check_duplicate_packages.py
+
+      # --- shell-lint ---
+
+      - name: Syntax-check and lint deploy scripts and git hooks
+        id: shell
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          scripts=(scripts/deploy/*.sh .githooks/*)
+          if [ ${#scripts[@]} -eq 0 ]; then
+            echo "No shell scripts to lint."
+            exit 0
+          fi
+          for script in "${scripts[@]}"; do
+            echo "== bash -n: ${script} =="
+            bash -n "${script}"
+            echo "== shellcheck: ${script} =="
+            shellcheck "${script}"
+          done
+
+      # --- report ---
+      #
+      # A check the tier did not ask for reports `not affected` and passes.
+      # A check that was asked for but reports `skipped` means a setup step
+      # failed before it ran; that is reported, and it fails the job below.
+
+      - name: Build the results report
+        if: always()
+        env:
+          R_PINT: ${{ steps.pint.outcome }}
+          R_LARASTAN: ${{ steps.larastan.outcome }}
+          R_AUDIT_COMPOSER: ${{ steps.audit_composer.outcome }}
+          R_AUDIT_COMPOSER_DEV: ${{ steps.audit_composer_dev.outcome }}
+          R_AUDIT_NPM: ${{ steps.audit_npm.outcome }}
+          R_AUDIT_NPM_DEV: ${{ steps.audit_npm_dev.outcome }}
+          R_DOCS_TESTS: ${{ steps.docs_tests.outcome }}
+          R_DOCS_GUARDS: ${{ steps.docs_guards.outcome }}
+          R_SHELL: ${{ steps.shell.outcome }}
+          S_TIER: ${{ steps.scope.outputs.tier }}
+          S_PINT: ${{ steps.scope.outputs.pint }}
+          S_LARASTAN: ${{ steps.scope.outputs.larastan }}
+          S_COMPOSER: ${{ steps.scope.outputs.composer_audit }}
+          S_NPM: ${{ steps.scope.outputs.npm_audit }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gate_failed=0
+          row() { # check, step, outcome, gates (yes/no), applies (1/0)
+            if [ "${5:-1}" = 0 ]; then
+              echo "| $1 | $2 | not affected |"
+              return
+            fi
+            case "$3" in
+              success) icon="pass" ;;
+              failure) icon="FAIL" ;;
+              *) icon="$3" ;;
+            esac
+            if [ "$4" = yes ]; then
+              [ "$3" = success ] || gate_failed=1
+              echo "| $1 | $2 | $icon |"
+            else
+              echo "| $1 | $2 (informational) | $icon |"
+            fi
+          }
+          {
+            echo "<!-- ci-checks -->"
+            echo "### CI checks"
+            echo ""
+            if [ "$S_TIER" = task ]; then
+              echo "Task tier (PR into \`${GITHUB_BASE_REF}\`): changed files only; larastan runs on the feature branch's PR into \`main\`."
+            else
+              echo "Full tier: every check over the whole repository."
+            fi
+            echo ""
+            echo "| Check | Step | Result |"
+            echo "| --- | --- | --- |"
+            row pint "Pint (check mode)" "$R_PINT" yes "$S_PINT"
+            row larastan "Larastan" "$R_LARASTAN" yes "$S_LARASTAN"
+            row audit "Composer advisories (runtime)" "$R_AUDIT_COMPOSER" yes "$S_COMPOSER"
+            row audit "Composer advisories (including dev)" "$R_AUDIT_COMPOSER_DEV" no "$S_COMPOSER"
+            row audit "npm advisories (production)" "$R_AUDIT_NPM" yes "$S_NPM"
+            row audit "npm advisories (including dev)" "$R_AUDIT_NPM_DEV" no "$S_NPM"
+            row docs-guard "Docs guard unit tests" "$R_DOCS_TESTS" yes
+            row docs-guard "Docs guards" "$R_DOCS_GUARDS" yes
+            row shell-lint "Deploy script and hook lint" "$R_SHELL" yes
+            echo ""
+            if [ "$gate_failed" = 1 ]; then
+              echo "**Gate: failed.** Open the run for the failing step's log."
+            else
+              echo "**Gate: passed.**"
+            fi
+            echo ""
+            echo "Commit \`${HEAD_SHA:0:7}\`, [run $GITHUB_RUN_ID]($RUN_URL). This comment is updated on every run."
+          } > checks-report.md
+          cat checks-report.md >> "$GITHUB_STEP_SUMMARY"
+          echo "gate_failed=$gate_failed" >> "$GITHUB_OUTPUT"
+        id: report
+
+      - name: Post or update the PR comment
+        if: always() && github.event_name == 'pull_request' && steps.report.outcome == 'success'
+        # Reporting must never decide the gate.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR/comments" \
+            --jq '.[] | select(.body | startswith("<!-- ci-checks -->")) | .id' | head -n 1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@checks-report.md > /dev/null
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@checks-report.md > /dev/null
+          fi
+
+      - name: Fail if any gating check failed
+        if: always()
+        run: |
+          if [ "${{ steps.report.outputs.gate_failed }}" != "0" ]; then
+            echo "One or more gating checks failed, or setup failed before they ran. See the table in the run summary."
+            exit 1
+          fi
+
+  # The pest gate is three jobs: pest-assets builds the frontend once,
+  # pest-shard runs one slice of the suite per matrix entry on its own
+  # runner and its own MySQL, and pest merges the slices' coverage and
+  # applies the floor. `pest` keeps its name so it stays the one check to
+  # require, and it fails if any shard failed or was cancelled.
+  #
+  # Run conditions (an Actions-minutes control): the gate runs only when
+  # deliberately asked for, or where it is mandatory:
+  #   - add the `run-pest` label to a PR (the labeled trigger above
+  #     re-fires the workflow), or
+  #   - the PR head is release-please's release branch, or
+  #   - the PR takes a feature/* branch into main: that merge is the
+  #     feature's release gate, so pest is mandatory there, and the task PRs
+  #     into the feature branch run it only on a label, or
+  #   - the PR takes a fix/* branch into main: a production fix with no
+  #     owning feature has nothing later to catch it.
+  # The release PR is created with the default GITHUB_TOKEN, so no
+  # workflow fires on it by itself (same recursion guard documented in
+  # release-please.yml); the human labelling action is what triggers this
+  # run. The head-ref condition is a belt-and-braces catch for human
+  # pushes or reopens on that branch. Only the PR-gate run enforces the
+  # coverage floor; a manual dispatch runs coverage-override instead.
+  pest-assets:
+    name: pest-assets
+    if: >-
+      github.event_name == 'pull_request' &&
+      (contains(github.event.pull_request.labels.*.name, 'run-pest') ||
+       github.head_ref == 'release-please--branches--main' ||
+       ((startsWith(github.head_ref, 'feature/') || startsWith(github.head_ref, 'fix/')) && github.base_ref == 'main'))
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: laravel
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # The build gets the composer install as well as node_modules, since
+      # Livewire/Flux-style packages ship CSS that app.css imports from
+      # vendor/.
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v6
+        with:
+          path: laravel/vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('laravel/composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: laravel/package-lock.json
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build frontend assets
+        run: npm run build
+
+      - name: Upload built assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: pest-assets
+          path: laravel/public/build
+          retention-days: 1
+
+  pest-shard:
+    name: pest-shard (${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: pest-assets
+    runs-on: ubuntu-latest
+    # Pest's own --shard splits by test file, so every test in a file runs
+    # in the same shard, and no test uses ->depends(), so nothing crosses
+    # a file. Each shard is a separate runner with a separate database,
+    # which isolates shards from each other completely; within a shard the
+    # suite runs serially, exactly as the single job used to.
+    #
+    # Start small and raise the count as the suite grows. To change the
+    # shard count, edit the list; --shard reads the total
+    # from it. Pest balances shards by the per-file times recorded in
+    # tests/.pest/shards.json, which the pest job rebuilds from every run's
+    # JUnit logs (see its "Build shard timings" step). Files the timings do
+    # not know yet are still distributed, so the file going stale loses
+    # balance, never tests.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    defaults:
+      run:
+        working-directory: laravel
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: testing
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -ppassword"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    # Explicit DB_* env for the CI run: matches phpunit.xml's testing
+    # environment (DB_DATABASE=testing) and the mysql service container
+    # above, rather than relying on Sail's .env (DB_HOST=mysql only
+    # resolves inside the Sail network).
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: testing
+      DB_USERNAME: root
+      DB_PASSWORD: password
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          coverage: pcov
+          tools: composer:v2
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v6
+        with:
+          path: laravel/vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('laravel/composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Download built assets
+        uses: actions/download-artifact@v8
+        with:
+          name: pest-assets
+          path: laravel/public/build
+
+      - name: Prepare environment file
+        run: cp .env.example .env
+
+      - name: Generate application key
+        run: php artisan key:generate
+
+      # No --min here: a shard's coverage is partial by construction. The
+      # floor is applied to the merged coverage by the pest job. The JUnit
+      # log carries per-file timings, from which the pest job rebuilds
+      # shards.json.
+      - name: Run Pest shard with coverage
+        run: >-
+          vendor/bin/pest
+          --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+          --coverage-php=coverage/shard-${{ matrix.shard }}.cov
+          --log-junit=coverage/junit-${{ matrix.shard }}.xml
+
+      - name: Upload shard coverage and timings
+        uses: actions/upload-artifact@v7
+        with:
+          name: pest-coverage-${{ matrix.shard }}
+          path: |
+            laravel/coverage/shard-${{ matrix.shard }}.cov
+            laravel/coverage/junit-${{ matrix.shard }}.xml
+          retention-days: 1
+
+  pest:
+    name: pest
+    needs: pest-shard
+    # always() so a failed or cancelled shard produces a red `pest` rather
+    # than a skipped one, which a required check would read as a pass.
+    if: >-
+      always() &&
+      github.event_name == 'pull_request' &&
+      (contains(github.event.pull_request.labels.*.name, 'run-pest') ||
+       github.head_ref == 'release-please--branches--main' ||
+       ((startsWith(github.head_ref, 'feature/') || startsWith(github.head_ref, 'fix/')) && github.base_ref == 'main'))
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: laravel
+    steps:
+      - name: Fail if any shard did not pass
+        if: needs.pest-shard.result != 'success'
+        # Runs before checkout, so laravel/ does not exist yet.
+        working-directory: .
+        run: |
+          echo "pest-shard result: ${{ needs.pest-shard.result }}. See the failed pest-shard or pest-assets job."
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v6
+        with:
+          path: laravel/vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('laravel/composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Download shard coverage
+        uses: actions/download-artifact@v8
+        with:
+          pattern: pest-coverage-*
+          path: laravel/coverage
+          merge-multiple: true
+
+      - name: Merge coverage and apply the 70% floor
+        run: php ../tools/ci/merge-coverage.php 70 coverage/*.cov
+
+      # Fresh shard timings from this run, offered as an artifact rather
+      # than pushed, so CI never commits to a branch. Refresh the committed
+      # file when the summary shows many untimed files or shards drift
+      # apart in duration; new test files are still sharded meanwhile, by
+      # rotation, so a stale file costs balance, never tests.
+      - name: Build shard timings
+        # Advisory: a timings problem must never fail the gate.
+        continue-on-error: true
+        run: |
+          php ../tools/ci/build-shard-timings.php coverage/junit-*.xml > shards.json 2> timings-diff.txt
+          {
+            echo "## Shard timings"
+            echo ""
+            cat timings-diff.txt
+            echo ""
+            echo "To refresh the committed file from this run:"
+            echo ""
+            echo '```'
+            echo "gh run download ${{ github.run_id }} -n pest-shards-json -D laravel/tests/.pest"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload shard timings
+        # Advisory: a timings problem must never fail the gate.
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: pest-shards-json
+          path: laravel/shards.json
+          retention-days: 30
+
+  coverage-override:
+    name: coverage-override
+    # Owner-only escape hatch: runs the same test suite without the
+    # coverage floor, triggered exclusively by a manual workflow_dispatch;
+    # a repo collaborator without write access cannot dispatch this. Every run is logged with who
+    # triggered it, when, and the required reason, in the job summary.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: laravel
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: testing
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -ppassword"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: testing
+      DB_USERNAME: root
+      DB_PASSWORD: password
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Record override reason in run summary
+        run: |
+          {
+            echo "## Coverage override"
+            echo ""
+            echo "- **Who**: @${{ github.actor }}"
+            echo "- **When**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "- **Ref**: ${{ github.ref }}"
+            echo "- **Why**: ${{ inputs.reason }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          coverage: pcov
+          tools: composer:v2
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v6
+        with:
+          path: laravel/vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('laravel/composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: laravel/package-lock.json
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build frontend assets
+        run: npm run build
+
+      - name: Prepare environment file
+        run: cp .env.example .env
+
+      - name: Generate application key
+        run: php artisan key:generate
+
+      - name: Run Pest test suite (coverage reported, floor not enforced)
+        run: vendor/bin/pest --coverage

@@ -1,0 +1,84 @@
+# Dependabot configuration.
+#
+# Two things here are load-bearing and easy to get wrong:
+#
+# 1. The Laravel application lives in /laravel, not at the repository root.
+#    A config using the usual `directory: "/"` finds no manifests, reports
+#    success, and watches nothing. The composer and npm entries must point at
+#    /laravel.
+#
+# 2. Commit message prefixes must be Conventional Commits, because a merged
+#    pull request's squash subject is what release-please parses to decide the
+#    next version. Dependabot's default subject ("Bump x from 1.0 to 1.1") is
+#    not conventional and would be ignored by release-please, or worse, land as
+#    an unclassified commit in the changelog.
+#
+#    Runtime dependencies use `fix`, so a security patch produces a patch bump.
+#    Development dependencies and actions use `chore` and `ci`, which are
+#    changelog-visible but do not bump the version on their own.
+#
+# Grouping applies to routine version updates only. Security updates are
+# deliberately left ungrouped so each one arrives as its own reviewable pull
+# request that can be merged on its own merits.
+
+version: 2
+
+updates:
+  # PHP dependencies for the Laravel application.
+  - package-ecosystem: composer
+    directory: /laravel
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/London
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: fix
+      prefix-development: chore
+      include: scope
+    groups:
+      composer-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+
+  # Front-end build dependencies, also under /laravel.
+  - package-ecosystem: npm
+    directory: /laravel
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/London
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: fix
+      prefix-development: chore
+      include: scope
+    groups:
+      npm-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+
+  # Workflow actions. These sit at the repository root, not under /laravel.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/London
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions-all:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch

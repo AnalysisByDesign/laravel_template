@@ -1,0 +1,97 @@
+name: Claude Code Nightly Fan-out
+
+# Batches up whatever's labelled "queue-for-agent" and runs them all through
+# Claude Code in one go, on the subscription's OAuth token rather than
+# metered API billing. Built for firing off at the end of the day.
+#
+# Deliberately separate from the "agent-ready" label in claude-code.yml,
+# which fires immediately, one issue at a time; use that for anything
+# wanted now.
+#
+# IMPORTANT: only label genuinely independent issues "queue-for-agent".
+# Issues that touch overlapping files should go through one at a time;
+# running them in the same parallel batch produces conflicting PRs.
+#
+# Setup:
+#   - Add repo secret CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`,
+#     run locally while logged into the subscription account).
+#   - Create labels "queue-for-agent" and "agent-working" if they don't
+#     already exist (Issues > Labels > New label).
+#   - The schedule is commented out so a fresh repository does not run an
+#     empty discover job every night. Uncomment it once the labels and the
+#     secret exist. Cron is UTC and does not shift for daylight saving.
+#   - workflow_dispatch fires it on demand:
+#     gh workflow run claude-nightly-fanout.yml
+
+on:
+  workflow_dispatch: {}
+  # schedule:
+  #   - cron: "0 3 * * *"   # 03:00 UTC, every day
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: read
+    outputs:
+      issues: ${{ steps.find.outputs.issues }}
+    steps:
+      - id: find
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          issues=$(gh issue list --repo "${{ github.repository }}" \
+            --label queue-for-agent --state open --json number \
+            --jq '[.[].number]')
+          echo "Found issues: $issues"
+          echo "issues=$issues" >> "$GITHUB_OUTPUT"
+
+  fanout:
+    needs: discover
+    if: needs.discover.outputs.issues != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      # Conservative concurrency: the account's rate limit is shared across
+      # every parallel run plus anything else on the same plan. Raise this
+      # once a batch has run cleanly.
+      max-parallel: 3
+      fail-fast: false
+      matrix:
+        issue: ${{ fromJson(needs.discover.outputs.issues) }}
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Mark issue as picked up
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue edit "${{ matrix.issue }}" --repo "${{ github.repository }}" \
+            --remove-label queue-for-agent --add-label agent-working
+
+      - uses: anthropics/claude-code-action@v1
+        env:
+          # env: rather than with:, see claude-code.yml.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_args: "--max-turns 60"
+          prompt: |
+            Read CLAUDE.md and .specify/memory/constitution.md before doing anything else.
+
+            Run `gh issue view ${{ matrix.issue }} --repo ${{ github.repository }}` to read the issue, then implement a fix for it.
+
+            Rules:
+            - Branch off main, name it fix/issue-${{ matrix.issue }}-<short-slug>. A fix/* PR into main runs pest without a label, so CI is the test gate.
+            - Follow CLAUDE.md conventions: Pest only with TDD (write a failing test first), config-driven values rather than hardcoded limits/defaults, zero em/en dashes in anything user-facing, Conventional Commits on every commit.
+            - Scope the change to this issue only. Do not touch unrelated components or specs, even if you notice something else that looks wrong nearby.
+            - Add or update Pest tests covering the fix.
+            - Push the branch and open a PR against main. Include "Closes #${{ matrix.issue }}" in the PR description, plus a short summary of the change and how it was tested.
+            - Do not merge the PR yourself and do not push to main directly.

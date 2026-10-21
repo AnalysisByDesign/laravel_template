@@ -1,0 +1,94 @@
+@startuml workflow-work-package
+' The work package lane: work that is real but never becomes a spec, such as
+' infrastructure, research, tooling and documentation.
+'
+' One of three lane diagrams (feature, work package, fix). The branches
+' each step works on are in docs/development/branching-model.puml.
+' The pre-commit hook renders the PNG for any staged .puml automatically;
+' render the PDF with `plantuml -tpdf docs/development/workflow-work-package.puml`.
+
+title The work package lane
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam defaultFontSize 12
+skinparam ArrowColor #555555
+skinparam ArrowFontSize 10
+skinparam ArrowFontColor #666666
+
+skinparam rectangle {
+  BorderColor #999999
+  BackgroundColor #FFFFFF
+  FontSize 12
+  roundCorner 8
+}
+skinparam package {
+  BorderColor #BBBBBB
+  BackgroundColor #FAFAFA
+  FontColor #777777
+  FontSize 11
+  FontStyle plain
+}
+
+package "Capture" {
+  rectangle "**Voice planning session**\non claude.ai, usually mobile" as session #FFF8F0
+  rectangle "**Session brief**\ndocs/sessions/YYYY-MM-DD-topic.md" as brief
+  rectangle "**tpl-review-session-notes**\ncreates what the brief declares" as notes #F0F6FF
+}
+
+package "Backlog" {
+  rectangle "**Work package**\ndocs/work-packages/backlog/wp-*.md\nstatus, owner, gate" as wp
+}
+
+package "Promotion  (on main)" {
+  rectangle "**tpl-promote-wp**\nmoves it to docs/work-packages/,\noptional batch number from the operator,\nwrites **Target branch**" as promote #F0F6FF
+  rectangle "**feature/wp-slug**\ncut from main and pushed;\nno batch number in the name" as featbranch #F0F6FF
+}
+
+package "Work  (task branches into feature/wp-slug)" {
+  rectangle "**Task branch**\none section or step of the package;\nmixed ownership is sectioned,\nnot split" as task
+  rectangle "**the operator's sections**\nAWS, DNS, accounts, rulings:\nnot Claude Code tasks" as op #FFF8F0
+  rectangle "**tpl-merge**, task merge\nchecks (task tier) green,\npest on the operator's say so;\nsync onto the feature branch" as taskmerge #F0F6FF
+}
+
+package "Release" {
+  rectangle "**tpl-merge**, feature merge\nmain merged in, full checks,\npest mandatory, migration order" as featmerge #F0F6FF
+  rectangle "**/code-review**\nThe operator triggers it.\nNever launched by a skill." as review #FFF0F0
+  rectangle "**tpl-archive-wp**\nin the feature merge's PR:\nto done/, batch number stripped,\nstatus restated" as archive #F0F6FF
+  rectangle "**main**\nindexes and roadmap regenerated\nin a docs-only follow-up PR" as main
+  rectangle "**release-please PR**\nmerging it publishes the\nrelease and fires the deploy" as release
+  rectangle "**Live**" as live #F0FFF0
+}
+
+session --> brief : dictated, then\nasked for as a brief
+brief --> notes
+notes --> wp : work that never\nbecomes a spec
+wp --> promote : the operator starts it
+promote --> featbranch
+featbranch --> task
+task --> taskmerge
+taskmerge --> featbranch : squash into\nthe feature branch
+op ..> featbranch : unblocks gated\nsections
+featbranch --> featmerge : package delivered
+review ..> featmerge : outstanding gate
+archive ..> featmerge
+featmerge --> main
+main --> release
+release --> live
+
+note right of wp
+  A batch number (wp-NNN-) says which
+  packages the operator means to work as a set.
+  It is scheduling, not a gate, and it
+  is stripped when the package is archived.
+end note
+
+note bottom of featmerge
+  A package that changes no
+  application code still ships
+  through the release, so its
+  documents reach main once.
+end note
+
+@enduml

@@ -1,0 +1,101 @@
+@startuml workflow-feature
+' The feature lane: from a spoken idea to a spec live in production.
+'
+' One of three lane diagrams (feature, work package, fix). The branches
+' each step works on are in docs/development/branching-model.puml.
+' The pre-commit hook renders the PNG for any staged .puml automatically;
+' render the PDF with `plantuml -tpdf docs/development/workflow-feature.puml`.
+'
+' Scope: the route work takes, not every skill. A skill that runs inside
+' another step (tpl-po-check inside promotion, tpl-session-name inside specify
+' and merge, tpl-prepare-docs-reference inside the merge) is named on the
+' step that calls it.
+
+title The feature lane
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam defaultFontSize 12
+skinparam ArrowColor #555555
+skinparam ArrowFontSize 10
+skinparam ArrowFontColor #666666
+
+skinparam rectangle {
+  BorderColor #999999
+  BackgroundColor #FFFFFF
+  FontSize 12
+  roundCorner 8
+}
+skinparam package {
+  BorderColor #BBBBBB
+  BackgroundColor #FAFAFA
+  FontColor #777777
+  FontSize 11
+  FontStyle plain
+}
+
+package "Capture" {
+  rectangle "**Voice planning session**\non claude.ai, usually mobile" as session #FFF8F0
+  rectangle "**Session brief**\ndocs/sessions/YYYY-MM-DD-topic.md" as brief
+  rectangle "**tpl-review-session-notes**\ncreates what the brief declares" as notes #F0F6FF
+}
+
+package "Backlog" {
+  rectangle "**Backlog capture**\ndocs/features/backlog/ft-*.md\nunnumbered, no committed phase" as capture
+  rectangle "**tpl-review-backlog**\nthe ceremony: what enters a phase" as ceremony #F0F6FF
+  rectangle "**tpl-split-feature**\nright-sizes an oversized capture\ninto ordered, shippable slices" as split #F0F6FF
+}
+
+package "Promotion  (on main)" {
+  rectangle "**tpl-promote-backlog-spec**\nallocates the number; asks the\nproduct owner first; writes\n**Target branch** into the spec" as promote #F0F6FF
+  rectangle "**feature/NNN-slug**\ncut from main and pushed" as featbranch #F0F6FF
+}
+
+package "Build  (task branches into feature/NNN-slug)" {
+  rectangle "**/speckit.specify**\nrun from the feature branch;\nits hook cuts the first task branch" as specify #F0FFF4
+  rectangle "**/speckit.clarify**  every NEEDS CLARIFICATION resolved\n**/speckit.plan**  stack, data model, ER diagram;\noperator review before any migration\n**/speckit.tasks**  dependency-ordered tasks.md\n**/speckit.analyze**  contradictions found" as middle #F0FFF4
+  rectangle "**/speckit.implement**\nTDD, one user story at a time,\neach on its own task branch" as implement #F0FFF4
+  rectangle "**/speckit.checklist**\nthen **/speckit.converge**\nappends whatever is unbuilt" as converge #F0FFF4
+  rectangle "**tpl-merge**, task merge\nchecks (task tier) green,\npest on the operator's say so;\nsync onto the feature branch" as taskmerge #F0F6FF
+}
+
+package "Release" {
+  rectangle "**tpl-merge**, feature merge\nmain merged in, full checks,\npest mandatory, migration order,\nreview and conformance gates" as featmerge #F0F6FF
+  rectangle "**/code-review**\nThe operator triggers it.\nNever launched by a skill." as review #FFF0F0
+  rectangle "**main**\nindexes and roadmap regenerated\nin a docs-only follow-up PR" as main
+  rectangle "**release-please PR**\nmerging it publishes the\nrelease and fires the deploy" as release
+  rectangle "**Live**" as live #F0FFF0
+  rectangle "**tpl-archive-spec**\nin the feature merge's PR,\nwhen the spec is finished" as archive #F0F6FF
+}
+
+session --> brief : dictated, then\nasked for as a brief
+brief --> notes
+notes --> capture : feature intent
+capture --> ceremony
+ceremony --> split : oversized
+ceremony --> promote : right-sized
+split --> promote : slice by slice
+promote --> featbranch
+featbranch --> specify
+specify --> middle
+middle --> implement
+implement --> converge
+converge --> implement : unbuilt work found
+implement --> taskmerge : each task branch
+middle --> taskmerge : the document phases
+taskmerge --> featbranch : squash into\nthe feature branch
+converge --> featmerge : nothing left unbuilt
+review ..> featmerge : outstanding gate
+archive ..> featmerge
+featmerge --> main
+main --> release
+release --> live
+
+note bottom of featbranch
+  One feature branch per spec.
+  A slice of a split capture is
+  its own spec, so its own branch.
+end note
+
+@enduml

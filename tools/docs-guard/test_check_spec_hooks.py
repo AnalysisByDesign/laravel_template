@@ -22,9 +22,9 @@ GIT_ENTRY = """\
     condition: null
 """
 
-TLX_ENTRY = """\
-  - extension: tlx
-    command: tpl.session.name
+HOOK_ENTRY = """\
+  - extension: "{{SKILL_PREFIX}}"
+    command: "{{SKILL_PREFIX}}.session.name"
     enabled: {enabled}
     optional: false
     priority: 20
@@ -56,12 +56,12 @@ class SpecHookGuardTest(unittest.TestCase):
     def write(self, after_specify: str, skill: bool = True) -> None:
         (self.repo / ".specify/extensions.yml").write_text(extensions(after_specify))
         if skill:
-            d = self.repo / ".claude/skills/tpl-session-name"
+            d = self.repo / ".claude/skills/{{SKILL_PREFIX}}-session-name"
             d.mkdir(parents=True)
-            (d / "SKILL.md").write_text("---\nname: tpl-session-name\n---\n")
+            (d / "SKILL.md").write_text('---\nname: "{{SKILL_PREFIX}}-session-name"\n---\n')
 
     def test_passes_when_registered_enabled_and_the_skill_exists(self) -> None:
-        self.write(GIT_ENTRY + TLX_ENTRY.format(enabled="true"))
+        self.write(GIT_ENTRY + HOOK_ENTRY.replace("{enabled}", "true"))
         self.assertEqual(guard.main(), 0)
 
     def test_fails_when_an_upgrade_dropped_the_entry(self) -> None:
@@ -74,7 +74,7 @@ class SpecHookGuardTest(unittest.TestCase):
         self.write(GIT_ENTRY)
         text = (self.repo / ".specify/extensions.yml").read_text()
         (self.repo / ".specify/extensions.yml").write_text(
-            text + TLX_ENTRY.format(enabled="true")
+            text + HOOK_ENTRY.replace("{enabled}", "true")
         )
         self.assertEqual(
             [e["command"] for e in guard.hook_entries(text, "after_specify")],
@@ -83,11 +83,11 @@ class SpecHookGuardTest(unittest.TestCase):
         self.assertEqual(guard.main(), 1)
 
     def test_fails_when_disabled(self) -> None:
-        self.write(GIT_ENTRY + TLX_ENTRY.format(enabled="false"))
+        self.write(GIT_ENTRY + HOOK_ENTRY.replace("{enabled}", "false"))
         self.assertEqual(guard.main(), 1)
 
     def test_fails_when_the_skill_is_missing(self) -> None:
-        self.write(GIT_ENTRY + TLX_ENTRY.format(enabled="true"), skill=False)
+        self.write(GIT_ENTRY + HOOK_ENTRY.replace("{enabled}", "true"), skill=False)
         self.assertEqual(guard.main(), 1)
 
 

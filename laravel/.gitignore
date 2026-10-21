@@ -31,3 +31,5 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+# The .env init-laravel-app moves aside (tools/init/init_app.py); may hold secrets.
+.env.pre-init-*

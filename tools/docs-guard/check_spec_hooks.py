@@ -10,7 +10,7 @@ phase still runs, it just stops calling the project skill, and nothing says so.
 This guard is what says so.
 
 Each entry below names the hook, the command, and the skill the command
-resolves to (spec-kit turns `tpl.session.name` into `/tpl-session-name`).
+resolves to (spec-kit turns `{{SKILL_PREFIX}}.session.name` into `/{{SKILL_PREFIX}}-session-name`).
 
 Host-side stdlib Python, like the other docs-guard checks: the Sail container
 mounts `laravel/` only, and there is no YAML parser in the standard library, so
@@ -35,7 +35,7 @@ EXTENSIONS = ".specify/extensions.yml"
 REQUIRED_HOOKS = [
     (
         "after_specify",
-        "tpl.session.name",
+        "{{SKILL_PREFIX}}.session.name",
         "gives the operator the /rename command naming the session for the spec",
     ),
 ]
@@ -60,7 +60,9 @@ def hook_entries(text: str, hook: str) -> list[dict[str, str]]:
         if line.startswith("  - "):
             entries.append({})
         if entries:
-            entries[-1][match.group(1)] = match.group(2).strip()
+            # A quoted scalar (needed while the value is a template placeholder)
+            # reads the same as a bare one.
+            entries[-1][match.group(1)] = match.group(2).strip().strip("\"'")
     return entries
 
 

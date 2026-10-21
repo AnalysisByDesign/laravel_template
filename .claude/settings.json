@@ -19,7 +19,14 @@
       "Bash(*migrate:refresh*)",
       "Bash(*migrate:reset*)",
       "Bash(*db:wipe*)",
-      "Bash(make fresh*)"
+      "Bash(make fresh*)",
+      "Bash(make restore*)",
+      "Bash(*db-restore.sh*)",
+      "Read(laravel/.env)",
+      "Read(laravel/.env.backup-*)",
+      "Read(laravel/.env.pre-init-*)",
+      "Bash(cat laravel/.env)",
+      "Bash(*cat *laravel/.env)"
     ]
   }
 }

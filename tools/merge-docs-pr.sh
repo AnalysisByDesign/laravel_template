@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Squash-merge one documentation-index regeneration pull request, the fifth
-# phase of the tpl-merge skill, after proving it is that and nothing else.
+# phase of the {{SKILL_PREFIX}}-merge skill, after proving it is that and nothing else.
 #
 # Why this exists rather than a permission rule on `gh pr merge`
 # -------------------------------------------------------------

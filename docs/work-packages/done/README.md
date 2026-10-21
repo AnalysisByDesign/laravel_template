@@ -6,7 +6,7 @@ Work packages whose work has been delivered.
 
 ## How a package gets here
 
-Through the `tpl-archive-wp` skill, never a bare `git mv`. The skill strips the batch number from the filename, restates the status line to say what the package produced, removes the row from the live table in `docs/work-packages/README.md`, and repoints every reference.
+Through the `{{SKILL_PREFIX}}-archive-wp` skill, never a bare `git mv`. The skill strips the batch number from the filename, restates the status line to say what the package produced, removes the row from the live table in `docs/work-packages/README.md`, and repoints every reference.
 
 ## Delivered, not superseded
 

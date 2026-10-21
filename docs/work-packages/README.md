@@ -31,11 +31,11 @@ A work package is a unit of work handed to a session: what to do, in what order,
 
 | Folder | Means | How it gets there |
 | --- | --- | --- |
-| `backlog/` | Captured, nobody working on it | `tpl-review-session-notes` writes new packages here |
-| the root | In flight, with its own `feature/wp-<slug>` branch | `tpl-promote-wp` moves it, cuts and pushes the branch, and writes `**Target branch**` into the header |
-| `done/` | Delivered, superseded or abandoned | `tpl-archive-wp` |
+| `backlog/` | Captured, nobody working on it | `{{SKILL_PREFIX}}-review-session-notes` writes new packages here |
+| the root | In flight, with its own `feature/wp-<slug>` branch | `{{SKILL_PREFIX}}-promote-wp` moves it, cuts and pushes the branch, and writes `**Target branch**` into the header |
+| `done/` | Delivered, superseded or abandoned | `{{SKILL_PREFIX}}-archive-wp` |
 
-**Every task PR for a promoted package targets its feature branch**, and the feature branch merges into `main` once, as the package's release gate (`tpl-merge`, feature merge). The branch name carries no batch number, because batch numbers are reused and a branch outlives a batch.
+**Every task PR for a promoted package targets its feature branch**, and the feature branch merges into `main` once, as the package's release gate (`{{SKILL_PREFIX}}-merge`, feature merge). The branch name carries no batch number, because batch numbers are reused and a branch outlives a batch.
 
 **Every live package.** Keep this table current when a package is added, moved to `done/`, or re-batched, so the folder can be placed without reading it.
 
@@ -76,7 +76,7 @@ The `README.md` exclusion is load-bearing: there is one in each directory. Silen
 
 ## When something moves to `done/`
 
-**Through the `tpl-archive-wp` skill, never a bare `git mv`**, and **when the work it describes has been delivered**, not when the document stops being useful. The move strips the batch number, restates the status line to say what the package produced, removes the row from the table above, and rewrites every reference.
+**Through the `{{SKILL_PREFIX}}-archive-wp` skill, never a bare `git mv`**, and **when the work it describes has been delivered**, not when the document stops being useful. The move strips the batch number, restates the status line to say what the package produced, removes the row from the table above, and rewrites every reference.
 
 ## Directories
 
@@ -86,4 +86,4 @@ A work package earns a directory only when it accumulates enough companion mater
 
 - **Reviews, audits and triage records** go in `docs/reviews/`.
 - **User-facing guides** go in `docs/guides/`.
-- **Session briefs**, the bridge from claude.ai conversations, go in `docs/sessions/` and are processed by `tpl-review-session-notes`.
+- **Session briefs**, the bridge from claude.ai conversations, go in `docs/sessions/` and are processed by `{{SKILL_PREFIX}}-review-session-notes`.

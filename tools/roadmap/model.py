@@ -53,7 +53,7 @@ NON_ITEM_SECTIONS = (
 DOC_REFERENCE = re.compile(r"\b((?:ft|wp|spec|epic)-[a-z0-9][a-z0-9-]*\.md)\b")
 ISSUE_REFERENCE = re.compile(r"(?<![\w/#])#(\d{1,5})\b")
 HEADER_FIELD = re.compile(r"^\*\*(.+?)\*\*\s*:?\s*(.*)$")
-# The shape `tpl-split-feature` writes into a slice capture, and the shape
+# The shape `{{SKILL_PREFIX}}-split-feature` writes into a slice capture, and the shape
 # `tools/docs-guard/check_splits.py` enforces:
 #     **Parent**: `ft-the-parent.md`, slice 1 of 2.
 # That skill and its guard are the source of the shape, so this reader matches
@@ -299,7 +299,7 @@ def strip_kind_prefix(title: str) -> str:
 def parse_parent(value: str) -> tuple[str | None, tuple[int, int] | None]:
     """The parent filename and this slice's position, from a `**Parent**` line.
 
-    Both come from the one line, because that is where `tpl-split-feature` puts
+    Both come from the one line, because that is where `{{SKILL_PREFIX}}-split-feature` puts
     them. Reading a separate `**Slice**` field would have been a second contract
     nothing writes.
     """
@@ -363,7 +363,7 @@ def load_items() -> dict[str, Item]:
 def _attach_slices(items: dict[str, Item]) -> None:
     """Hang each slice capture under its parent, in build order.
 
-    The `**Parent**` and `**Slice**` fields are written by `tpl-split-feature`.
+    The `**Parent**` and `**Slice**` fields are written by `{{SKILL_PREFIX}}-split-feature`.
     Until that skill has
     split something there are no slices, and this does nothing.
     """

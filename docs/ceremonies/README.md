@@ -14,8 +14,8 @@ The record is what separates a ceremony from a tool. A ceremony's output is the 
 
 | Ceremony | Skill | What it decides |
 | --- | --- | --- |
-| Backlog review | `tpl-review-backlog` | What enters a phase. Walks `docs/features/backlog/` against a named phase, one item at a time, and promotes the accepted items into numbered specs. |
-| Product owner check | `tpl-po-check`, and inside `tpl-promote-backlog-spec` | Whether promoting one item now is consistent with the roadmap, the live batches and the constitution. Pushes back, never refuses; a `proceed` over a challenge needs the operator's written reason and lands in `po-overrides.md`, the one append-only record in this folder that spans runs. |
+| Backlog review | `{{SKILL_PREFIX}}-review-backlog` | What enters a phase. Walks `docs/features/backlog/` against a named phase, one item at a time, and promotes the accepted items into numbered specs. |
+| Product owner check | `{{SKILL_PREFIX}}-po-check`, and inside `{{SKILL_PREFIX}}-promote-backlog-spec` | Whether promoting one item now is consistent with the roadmap, the live batches and the constitution. Pushes back, never refuses; a `proceed` over a challenge needs the operator's written reason and lands in `po-overrides.md`, the one append-only record in this folder that spans runs. |
 
 ## Reading a record
 

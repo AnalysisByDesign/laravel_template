@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Guard: a split feature's parent and slices must agree.
 
-`tpl-split-feature` turns one oversize backlog capture into ordered slices and
+`{{SKILL_PREFIX}}-split-feature` turns one oversize backlog capture into ordered slices and
 restates the original as their parent. The link lives in the files themselves,
 so that the roadmap generator reads real
 artefacts rather than a hand-kept index:

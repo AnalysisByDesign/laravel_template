@@ -34,7 +34,7 @@ LOG_HEADER = """# Product owner overrides
 
 **Location**: `docs/ceremonies/po-overrides.md`
 
-Append-only. One dated entry per promotion that the product owner node challenged or deferred and the operator chose to proceed with anyway, written by the `tpl-promote-backlog-spec` skill and never by the node itself. After twenty entries this is evidence about which departures from the plan paid off. Never edit or remove an entry; a later correction is a new entry that cites the old one.
+Append-only. One dated entry per promotion that the product owner node challenged or deferred and the operator chose to proceed with anyway, written by the `{{SKILL_PREFIX}}-promote-backlog-spec` skill and never by the node itself. After twenty entries this is evidence about which departures from the plan paid off. Never edit or remove an entry; a later correction is a new entry that cites the old one.
 
 """
 

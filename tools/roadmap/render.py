@@ -161,7 +161,7 @@ def upcoming(roadmap: model.Roadmap) -> str:
         "",
         BANNER,
         "",
-        "**Status**: Generated %s by `tools/roadmap/build.py`. Regenerated after every merge by the `tpl-merge` skill."
+        "**Status**: Generated %s by `tools/roadmap/build.py`. Regenerated after every merge by the `{{SKILL_PREFIX}}-merge` skill."
         % _dt.date.today().isoformat(),
         "**Owner**: generated, nobody. Correct a fact in the document it came from.",
         "**Gate**: none.",
@@ -255,7 +255,7 @@ def completed(roadmap: model.Roadmap) -> str:
         "",
         BANNER,
         "",
-        "**Status**: Generated %s by `tools/roadmap/build.py`. Regenerated after every merge by the `tpl-merge` skill."
+        "**Status**: Generated %s by `tools/roadmap/build.py`. Regenerated after every merge by the `{{SKILL_PREFIX}}-merge` skill."
         % _dt.date.today().isoformat(),
         "**Owner**: generated, nobody.",
         "**Gate**: none.",

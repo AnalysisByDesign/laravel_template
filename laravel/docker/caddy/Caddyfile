@@ -18,9 +18,9 @@
 }
 
 # Both the bare zone and the wildcard. A wildcard covers exactly one
-# label level, so `*.app.test` does NOT cover `app.test` itself, and the
+# label level, so `*.{{LOCAL_DOMAIN}}` does NOT cover `{{LOCAL_DOMAIN}}` itself, and the
 # bare name has to be listed explicitly.
-{$CADDY_BASE_DOMAIN:app.test}, *.{$CADDY_BASE_DOMAIN:app.test} {
+{$CADDY_BASE_DOMAIN:{{LOCAL_DOMAIN}}}, *.{$CADDY_BASE_DOMAIN:{{LOCAL_DOMAIN}}} {
 	import tls-{$CADDY_TLS_MODE:internal}.caddy
 
 	encode zstd gzip
@@ -29,7 +29,7 @@
 	# single URL while pages may load from many hostnames, so the dev
 	# server needs a fixed address of its own. Everything on this host,
 	# including the HMR WebSocket, goes to Vite.
-	@vite host vite.{$CADDY_BASE_DOMAIN:app.test}
+	@vite host vite.{$CADDY_BASE_DOMAIN:{{LOCAL_DOMAIN}}}
 	handle @vite {
 		reverse_proxy laravel.test:{$VITE_PORT:5173}
 	}

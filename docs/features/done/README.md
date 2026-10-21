@@ -6,7 +6,7 @@ Shipped specs. A spec arrives here when the work it describes is merged and rele
 
 ## How things arrive
 
-Through the `tpl-archive-spec` skill, never a bare `git mv`. The skill moves both the feature document and its `specs/NNN-*/` spec-kit directory, then rewrites every reference across the repository. Moving the file alone leaves live documents pointing at a path that no longer exists, and nothing errors when one goes stale.
+Through the `{{SKILL_PREFIX}}-archive-spec` skill, never a bare `git mv`. The skill moves both the feature document and its `specs/NNN-*/` spec-kit directory, then rewrites every reference across the repository. Moving the file alone leaves live documents pointing at a path that no longer exists, and nothing errors when one goes stale.
 
 ## What belongs here
 

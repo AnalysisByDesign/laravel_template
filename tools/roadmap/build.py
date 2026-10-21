@@ -7,7 +7,7 @@ Writes `docs/roadmap/upcoming.md` and `docs/roadmap/completed.md`, plus two
 PlantUML diagrams of the same model (`roadmap-overview.puml` and
 `roadmap-gates.puml`) with their PNG renders, all committed, all generated, none
 ever edited by hand. The PNGs are rendered only when PlantUML is installed and
-the diagram source changed. `tpl-merge` runs this in
+the diagram source changed. `{{SKILL_PREFIX}}-merge` runs this in
 its fourth phase and carries the result in the documentation-only follow-up PR.
 
 Markdown rather than PDF: other documents need to link to the roadmap, the

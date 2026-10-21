@@ -3,8 +3,8 @@ name: product-owner
 description: >
   Product owner node: judges whether promoting one backlog item now is
   consistent with the roadmap, the live batches and the constitution.
-  Called by the tpl-promote-backlog-spec skill before it acts, and by
-  tpl-po-check on its own. Pushes back, never refuses. Never modifies files.
+  Called by the {{SKILL_PREFIX}}-promote-backlog-spec skill before it acts, and by
+  {{SKILL_PREFIX}}-po-check on its own. Pushes back, never refuses. Never modifies files.
 tools: Read
 model: opus
 ---

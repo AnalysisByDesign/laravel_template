@@ -1,6 +1,26 @@
-# laravel-template
+<!-- TEMPLATE-ONLY:START -->
+# Laravel application template
 
-Laravel 13 / PHP 8.5 starter with the delivery process built in: spec-kit, a feature-branch model, tiered CI, release-please and release-gated deploys. See `CLAUDE.md` for how the pieces fit together.
+A Laravel 13 / PHP 8.5 starting point with the delivery process built in: Sail with MySQL, Redis and Caddy; Pest, Pint and Larastan; spec-kit; a feature-branch model enforced by hooks and CI; release-please; release-gated SSM deploys; and Claude Code agents and skills that run the lifecycle. Each tag names the Laravel version it carries.
+
+## Creating an application from it
+
+1. On GitHub, choose **Use this template**, then clone the new repository.
+2. Open it in Claude Code and run `/init-laravel-app`. It asks for:
+   - the app name, slug, skill prefix, port suffix and domains;
+   - whether to generate the database passwords.
+
+   It then replaces every `{{PLACEHOLDER}}`, writes `laravel/.env` with a new `APP_KEY` and saves a summary to `docs/initialisation.md`. Init can only run once.
+3. Review and commit the diff, then follow the next steps in `docs/initialisation.md`.
+
+Everything below this section is the new application's README, and init fills it in.
+<!-- TEMPLATE-ONLY:END -->
+
+# {{APP_NAME}}
+
+{{APP_DESCRIPTION}}
+
+The values this repository was initialised with are in `docs/initialisation.md`. `CLAUDE.md` describes how the pieces fit together.
 
 ## Prerequisites
 
@@ -11,24 +31,30 @@ Laravel 13 / PHP 8.5 starter with the delivery process built in: spec-kit, a fea
 - gitleaks, run from your global `~/.git-hooks`
 - Python 3, for `tools/`
 
-## Starting a project from this template
+## Getting started
 
-1. Rename the compose project in `laravel/compose.yaml` and choose a port suffix in `laravel/.env.example`, so several projects can run side by side.
-2. `cp laravel/.env.example laravel/.env` (or `make env-sync`), then `make up`. The first run builds the PHP 8.5 image.
-3. `git config core.hooksPath .githooks`.
-4. Write the product summary and the `(PRODUCT)` principles in `.specify/memory/constitution.md`, and fill in `docs/features/roadmap.md`.
-5. Set the GitHub secrets and variables listed at the top of `.github/workflows/deploy.yml` and the two Claude workflows. Also create the `production` environment and the `run-pest` label, and import `.github/rulesets/main.json`.
-6. After the first commit, run `python3 tools/roadmap/build.py --no-github` once to generate `docs/roadmap/`.
+1. `git clone git@github.com:{{GITHUB_OWNER}}/{{GITHUB_REPO}}.git`
+2. If this machine has no `laravel/.env` yet, create one from `laravel/.env.example` and fill in `APP_KEY` and the three database passwords.
+3. `make up`. The first run builds the PHP 8.5 image, and MySQL creates the `{{APP_SLUG}}_rw` and `{{APP_SLUG}}_ro` users.
+4. `git config core.hooksPath .githooks`
+5. `make doctor`
 
 ## Common commands
 
 | Target | Effect |
 | --- | --- |
+| `make doctor` | Read-only check of tools, `.env`, hooks and the stack |
 | `make up` / `make down` | Start or stop Sail (app, MySQL, Redis, Caddy) |
 | `make dev` | Vite and the queue listener |
-| `make test ARGS="..."` | Pest; with no `ARGS`, the full suite in parallel |
+| `make logs` | Tail the container logs |
+| `make test` | The whole Pest suite in parallel; `ARGS="..."` for one file or filter |
 | `make lint` / `make stan` | Pint check and Larastan |
-| `make migrate` | Run migrations in Sail |
-| `make artisan cmd="..."` | Any artisan command |
+| `make env-sync` | Line `laravel/.env` up with `.env.example` |
+| `make backup` / `make restore` | Dump to `backups/`, or restore the newest or `DUMP=<file>` |
+| `make fresh` | Back up, then re-migrate and re-seed (asks for `yes`) |
 
-The app is at `http://localhost:$APP_PORT`. Caddy serves `https://$CADDY_BASE_DOMAIN` (default `app.test`, which needs an `/etc/hosts` entry).
+The app is at http://localhost:8{{PORT_SUFFIX}}. Caddy serves https://{{LOCAL_DOMAIN}}, which needs an `/etc/hosts` entry.
+
+## CI and deploys
+
+GitHub Actions workflows: [`ci.yml`](https://github.com/{{GITHUB_OWNER}}/{{GITHUB_REPO}}/actions/workflows/ci.yml), `release-please.yml` and `deploy.yml`. The secrets and variables each one needs are listed at the top of each workflow file.

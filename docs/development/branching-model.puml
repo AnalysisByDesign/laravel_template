@@ -32,7 +32,7 @@ participant "fix/812-...\n(fix for this feature)" as fx
 participant "fix/815-...\n(production fix)" as pfx #FFF0F0
 
 == Promotion ==
-main -> feat : cut at promotion and pushed\n(tpl-promote-backlog-spec, tpl-promote-wp)\n**Target branch** written into the document
+main -> feat : cut at promotion and pushed\n({{SKILL_PREFIX}}-promote-backlog-spec, {{SKILL_PREFIX}}-promote-wp)\n**Target branch** written into the document
 
 == Work on the feature ==
 feat -> t1 : cut by /speckit.specify\nrun from the feature branch
@@ -40,17 +40,17 @@ t1 -> feat : PR, squash-merged\ntask tier: per-file checks on changed files
 feat -> t2 : cut
 t2 -> feat : PR, squash-merged\npest only if the operator asks
 
-feat -> fx : cut by tpl-fix-branch\n(operator chose this feature)
+feat -> fx : cut by {{SKILL_PREFIX}}-fix-branch\n(operator chose this feature)
 fx -> feat : PR, squash-merged\nno pest: the feature merge tests it
 
 == Meanwhile, on main ==
-main -> pfx : cut by tpl-fix-branch\n(operator chose main)
+main -> pfx : cut by {{SKILL_PREFIX}}-fix-branch\n(operator chose main)
 pfx -> main : PR, squash-merged\npest **mandatory**: nothing later catches it
 
 main -> feat : merged in when there is a reason\n(never rebased)
 
 == Release gate ==
-feat -> main : one PR, squash-merged (tpl-merge, feature merge)\nfull checks, larastan and pest run without a label\nmigration order checked against main
+feat -> main : one PR, squash-merged ({{SKILL_PREFIX}}-merge, feature merge)\nfull checks, larastan and pest run without a label\nmigration order checked against main
 
 note over main
   Merging the release-please PR

@@ -229,9 +229,11 @@ jobs:
       #     registered in `.specify/extensions.yml`, which spec-kit also
       #     rewrites.
       #   check_duplicate_packages.py: no document exists under two names.
+      #   tools/init/check_placeholders.py: once initialised, no template
+      #     placeholder is left anywhere (a template copy reports and passes).
       # Roadmap staleness is deliberately not gated: docs/roadmap/*.md
       # includes open issues, which change without a commit. Regeneration is
-      # the tpl-merge skill's fourth phase.
+      # the {{SKILL_PREFIX}}-merge skill's fourth phase.
       #
       # A tool directory or guard that is absent is reported as a warning,
       # never skipped silently, so deleting one shows up on every PR.
@@ -241,7 +243,7 @@ jobs:
         continue-on-error: true
         run: |
           set -e
-          for d in tools/docs-guard tools/po-check tools/roadmap; do
+          for d in tools/docs-guard tools/po-check tools/roadmap tools/init; do
             if [ -d "$d" ]; then
               python3 -m unittest discover "$d"
             else
@@ -265,16 +267,17 @@ jobs:
           run_guard tools/docs-guard/check_local_state.py
           run_guard tools/docs-guard/check_spec_hooks.py
           run_guard tools/docs-guard/check_duplicate_packages.py
+          run_guard tools/init/check_placeholders.py
 
       # --- shell-lint ---
 
-      - name: Syntax-check and lint deploy scripts and git hooks
+      - name: Syntax-check and lint shell scripts and git hooks
         id: shell
         continue-on-error: true
         run: |
           set -euo pipefail
           shopt -s nullglob
-          scripts=(scripts/deploy/*.sh .githooks/*)
+          scripts=(scripts/deploy/*.sh scripts/dev/*.sh laravel/docker/mysql/*.sh .githooks/*)
           if [ ${#scripts[@]} -eq 0 ]; then
             echo "No shell scripts to lint."
             exit 0

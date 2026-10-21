@@ -1,7 +1,7 @@
 # Caddy with the Route 53 DNS provider compiled in.
 #
 # The stock `caddy` image carries no DNS-challenge providers, and a
-# wildcard certificate (`*.app.test`) can ONLY be issued over the
+# wildcard certificate (`*.{{LOCAL_DOMAIN}}`) can ONLY be issued over the
 # ACME DNS-01 challenge, so the provider has to be built in with xcaddy.
 #
 # Built and verified against Caddy v2.11.4 on 2026-07-27. The floating

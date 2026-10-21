@@ -13,7 +13,7 @@ Feature specifications. This folder is the live working view: numbered specs tha
 | `docs/features/done/` | Shipped | `spec-NNN-<slug>.md` |
 | `docs/features/dropped/` | Abandoned, kept for the reasoning | `spec-NNN-<slug>.md` or a descriptive name |
 
-Movement between them is not a bare `git mv`. Three skills cross these boundaries, one direction each: `tpl-promote-backlog-spec` brings a captured item into the live view and allocates its number, `tpl-demote-active-spec` sends an unstarted spec back to the backlog and releases its number, and `tpl-archive-spec` moves a shipped spec into `done/`. All three rewrite every reference across the repository, which is the part that is tedious to do by hand and easy to do incompletely.
+Movement between them is not a bare `git mv`. Three skills cross these boundaries, one direction each: `{{SKILL_PREFIX}}-promote-backlog-spec` brings a captured item into the live view and allocates its number, `{{SKILL_PREFIX}}-demote-active-spec` sends an unstarted spec back to the backlog and releases its number, and `{{SKILL_PREFIX}}-archive-spec` moves a shipped spec into `done/`. All three rewrite every reference across the repository, which is the part that is tedious to do by hand and easy to do incompletely.
 
 The demotion direction is the one to read before using: taking a number away means every bare `spec-NNN` in the repository has to be classified rather than swept, which is why it is a skill of its own rather than a flag on the promotion one.
 

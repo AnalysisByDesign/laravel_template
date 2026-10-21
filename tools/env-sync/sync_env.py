@@ -25,6 +25,7 @@ names keys only.
 Usage:
   python3 tools/env-sync/sync_env.py            # back up, rebuild, verify
   python3 tools/env-sync/sync_env.py --check    # report only, write nothing
+  python3 tools/env-sync/sync_env.py --check --strict   # ...and exit 3 if out of line
   python3 tools/env-sync/sync_env.py --env PATH --example PATH
 """
 
@@ -161,6 +162,7 @@ def main() -> int:
     ap.add_argument("--env", type=Path, default=REPO / "laravel/.env")
     ap.add_argument("--example", type=Path, default=REPO / "laravel/.env.example")
     ap.add_argument("--check", action="store_true", help="report only, write nothing")
+    ap.add_argument("--strict", action="store_true", help="with --check, exit 3 when .env is out of line")
     args = ap.parse_args()
 
     for p in (args.env, args.example):
@@ -197,7 +199,7 @@ def main() -> int:
         return 0
     if args.check:
         print("\nVerified. --check given, nothing written.")
-        return 0
+        return 3 if args.strict else 0
 
     backup = args.env.with_name(f".env.backup-{datetime.now():%Y%m%d-%H%M%S}")
     shutil.copy2(args.env, backup)

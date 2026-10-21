@@ -2,13 +2,15 @@
      product principles are placeholders to fill in during /speckit.constitution for the project
      created from this template. Nothing here is ratified until the version header says so. -->
 
-# [PROJECT_NAME]: Constitution
+# {{APP_NAME}}: Constitution
 
 **Version**: 0.1.0 | **Ratified**: UNRATIFIED | **Last Amended**: 2026-10-21
 
 ## Product Summary
 
-[PRODUCT_SUMMARY: one paragraph on what the product is, who it serves, and the first customer or reference user it is proved against.]
+{{APP_DESCRIPTION}}
+
+[PRODUCT_SUMMARY: expand into one paragraph on what the product is, who it serves, and the first customer or reference user it is proved against.]
 
 Full background and commercial rationale: `[project-description-and-context.md]`. Feature build order: `docs/roadmap/`. Component-level rationale for every principle below: `docs/decisions/`.
 

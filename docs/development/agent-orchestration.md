@@ -16,7 +16,7 @@ The mechanism is Claude Code **subagents with pinned models**. The spec, plan an
 | `/speckit.specify`, `/speckit.clarify`, `/speckit.plan`, `/speckit.tasks`, `/speckit.analyze` | Main conversation | Strongest available | Artefact quality here determines everything downstream. |
 | `/speckit.implement` (task execution) | `implementer` subagent | Sonnet | Well-scoped tasks against a confirmed plan; fast and cheap enough to run per task. |
 | Spec-conformance review and test audit before PR | `spec-reviewer` subagent | Opus | Independent, read-only judgement against the spec and the constitution; must not share the implementer's context. |
-| Promotion consistency check | `product-owner` subagent | Opus | Judgement on roadmap fit, called by `tpl-po-check` and `tpl-promote-backlog-spec`. |
+| Promotion consistency check | `product-owner` subagent | Opus | Judgement on roadmap fit, called by `{{SKILL_PREFIX}}-po-check` and `{{SKILL_PREFIX}}-promote-backlog-spec`. |
 
 The agent definitions live in `.claude/agents/`. The reviewer and product owner are **read-only by construction** (tool allowlist), not by prompt instruction.
 
@@ -71,7 +71,7 @@ Project skills pin a model in their frontmatter too. Two shapes, chosen by wheth
 - **`model` plus `context: fork`**: the skill runs as a subagent in a clean context, which is cheap, but cannot ask anything or see the conversation. Mechanical skills that ask nothing use this shape.
 - **`model` alone (inline)**: the skill can still ask, but the pinned model reads the whole conversation so far.
 
-Judgement-and-writing skills (`tpl-split-feature`, `tpl-review-backlog`, `tpl-review-session-notes`) carry no pin and run on the session model.
+Judgement-and-writing skills (`{{SKILL_PREFIX}}-split-feature`, `{{SKILL_PREFIX}}-review-backlog`, `{{SKILL_PREFIX}}-review-session-notes`) carry no pin and run on the session model.
 
 ## Gotchas
 

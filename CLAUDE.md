@@ -14,6 +14,14 @@ When changing the template itself, rather than an app built from it:
 - Placeholders have no spaces inside the braces, which keeps Blade's `{{ $x }}` and Actions' `${{ github.sha }}` out of the pattern.
 - `python3 tools/init/check_placeholders.py` reports the count while the repo is a template, and fails an initialised repo that still has any.
 - Tag each template release with the Laravel version it carries (`laravel-13.38.0`). Tags aren't copied into apps created from the template, so init records the version it read from `laravel/composer.lock` instead.
+- Never write a literal `{{WORD}}`, meaning two braces around an upper-case word, in prose or comments outside a template-only block. Init reads it as an unknown placeholder and refuses to run. Write "placeholder" instead. Template-only blocks are exempt, because init removes them first.
+
+**Maintaining the template:**
+
+- Changes go through `feature/*` branches and PRs into `main`, like any other work. `main` is the only long-lived branch.
+- **Versioning is by hand.** After bumping Laravel (or any change worth marking), merge it, then tag the merge commit on `main` with an annotated `laravel-<version>` tag naming the Laravel version in `laravel/composer.lock`, and push the tag.
+- **Close release-please PRs, never merge them.** `release-please.yml` and `deploy.yml` are guarded to run only in an initialised app's own repository, so the template shouldn't receive one. One opened before the guard existed. Merging one would give every new app a `CHANGELOG.md` and a version number inherited from the template.
+- **Test an init change before tagging.** Copy the tracked files into a scratch git repository, give it a fake GitHub remote, and run `tools/init/init_app.py --answers <file>` (with `--dry-run` first). Then check that `check_placeholders.py` reports none left and that every YAML file still parses.
 <!-- TEMPLATE-ONLY:END -->
 
 ## What this project is
